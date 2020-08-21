@@ -363,6 +363,8 @@ def main():
         modified_files = get_modified_files(proj_files.keys())
         for fpath in modified_files:
             upload_file(fpath, proj_files[fpath])
+            #rewrite the old dot file
+            shutil.copyfile(fpath, get_dot_name(fpath))
         pass
 
     elif action == "he": 
