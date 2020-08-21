@@ -1,5 +1,5 @@
 # weblate
-Scripts related to translation of the LibreOffice user interface, help and other files at https://translations.documentfoundation.org/
+Scripts related to translation of the LibreOffice user interface, help and other files at https://translations.documentfoundation.org/.
 ## etiptrans.py
 A script to transfer translation of LibreOffice extended tooltips between the Help translation files and the UI translations files.
 
@@ -37,13 +37,13 @@ The `upload` command uploads the modified files. If also help files were transla
 
 `revert`: Revert modified files to the original state
 
-## Updating
+### Updating
 There is no special command to update the strings if they change on the server. Delete everything and download again.
 
-## Other usage
+### Other usage
 The download and upload commands can be used to manage local translation by means of desktop programs (potrans, transifex, and with some effort perhap also OmegaT).
 
-## Installation of dependencies
+### Installation of dependencies
 The script was written and tested in Linux and python3. It requires several common modules (polib, requests, filecmp, json) and the `curl` programm. The script probably runs also in the Windows Subsystem for Linux (Windows 10) and maybe also in other environments. In Linux the modules can be installed using `pip`. 
 
 

@@ -4,8 +4,6 @@
 
 import sys, getopt, csv, re, time
 import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 import os, shutil, filecmp
 from os import path
 import ipdb
@@ -29,7 +27,7 @@ def usage():
     print("\tdownload\tDownload translation files for the project specidied by the -p switch")
     print("\tmodified\tList modified files")
     print("\tdifferences\tShow differences in modified files")
-    print("\trevert\t\tRevert modified filed to the original state")
+    print("\trevert\t\tRevert modified files to the original state")
     print("\ttransfer\ttransfer existing translations of extended tooltips from the other project")
     print("\tupload\t\tupload modified files to server")
     print("\thelp\t\tThis help")
@@ -67,12 +65,28 @@ def get_dot_name(filename):
     return path.join(path.dirname(filename),"."+path.basename(filename))
 
 def request_get(url):
-    global api_headers, http_request
-    response = http_request.get(url, headers=api_headers)
-    if response.ok:
-        return response.json()
-    else:
-        response.raise_for_status()
+    global api_headers
+    token = api_headers['Authorization']
+    curl_command = f'curl -s -X GET -H "authorization: {token}" {url}'
+
+    for rep in range(3):
+        response=os.popen(curl_command).read()
+        if not response:
+            print(f"request_get: no response from server")
+        elif "DOCTYPE html" in response:
+            respname = "server-error-%s.html"%time.now().replace(" ","-")
+            print(f"request_get: server problem, repeating the request. Server response saved to %s"%respname)   
+            with open(respname, 'w') as f:
+                f.write(response)
+        elif "Bad Request" in response:
+            print(f"request_get: curl commad corrupted")
+        else:
+            response_dir=json.loads(response)
+            if 'detail' in response_dir:
+                print(f"request_get: Commad failed ({response_dir['detail']})")
+            else:
+                return response_dir
+    sys.exit(1)
 
 def upload_file(fpath, furl):
     global api_headers
@@ -134,21 +148,18 @@ def download_subproject_file(project_name, component_name, language_code):
 
     os.makedirs(path.dirname(filename), exist_ok=True)
 
-    #ipdb.set_trace()
     if os.path.exists(filename):
         if verbose: print(f"  {filename}: already downloaded, skipping")
         return filename, f"{translations_url}/file"
     if verbose: print(f"  {filename}")
 
-    with http_request.get(f"{translations_url}/file", stream=True, timeout=2, headers=api_headers) as response:
-        response.raise_for_status()
-        allchunks=b""
-        #ipdb.set_trace()
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                allchunks += chunk
-    with open(filename, 'wb') as f:
-        f.write(allchunks)
+    url = f"{translations_url}/file/"
+    token = api_headers['Authorization']
+    curl_command = f'curl -s -X GET -H "authorization: {token}" {url}'
+    response=os.popen(curl_command).read()
+    #ipdb.set_trace()
+    with open(filename, 'w') as f:
+        f.write(response)
     # create 'backup'of the file for reference - will never be changed
     shutil.copyfile(filename, get_dot_name(filename))
     return filename, f"{translations_url}/file"
@@ -176,8 +187,6 @@ def transfer_tooltips_ui_to_help():
         po = polib.pofile(ufile)
         for entry in po:
             if "extended" in entry.msgctxt:
-                #ahelp_id=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)[0]
-                #ahelp_str=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgstr)
                 ahelp_id = entry.msgid
                 ahelp_str = entry.msgstr
                 if ahelp_str:
@@ -274,25 +283,12 @@ lang="sk"
 api_headers = None
 
 def main():
-    global http_request
-
-    #request_get hang quite often, this hangs much less
-    #https://findwork.dev/blog/advanced-usage-python-requests-timeouts-retries-hooks/
-    retry_strategy = Retry(
-        total=3,
-        status_forcelist=[429, 500, 502, 503, 504],
-        method_whitelist=["HEAD", "GET", "OPTIONS"]
-    )
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-    http_request = requests.Session()
-    http_request.mount("https://", adapter)
-    http_request.mount("http://", adapter)
+    global http_request, api_headers
 
     #response = http.get("https://en.wikipedia.org/w/api.php")
     action = parsecmd()
     if action: action=action[0][:2]
 
-    #ipdb.set_trace()
     if action != "he" and not trans_project in projects:
         print(f"\n%s error: translation project not specified."%sys.argv[0])
         usage()
