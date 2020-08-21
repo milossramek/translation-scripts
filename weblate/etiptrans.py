@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 #https://github.com/WeblateOrg/weblate/issues/1476
-#curl -X POST     -F overwrite=true -F file=@libo_ui-master/sk/oox/messages.po -H "authorization: Token weBLnbz9OuXDKmaA6fKd5rpgO7187ETyFO0186YJ" https://translations.documentfoundation.org/api/translations/libo_ui-master/ooxmessages/sk//file/
 
 import sys, getopt, csv, re, time
-import requests
 import os, shutil, filecmp
 from os import path
 import ipdb
@@ -65,8 +63,7 @@ def get_dot_name(filename):
     return path.join(path.dirname(filename),"."+path.basename(filename))
 
 def request_get(url):
-    global api_headers
-    token = api_headers['Authorization']
+    global token
     curl_command = f'curl -s -X GET -H "authorization: {token}" {url}'
 
     for rep in range(3):
@@ -74,7 +71,7 @@ def request_get(url):
         if not response:
             print(f"request_get: no response from server")
         elif "DOCTYPE html" in response:
-            respname = "server-error-%s.html"%time.now().replace(" ","-")
+            respname = "server-error-%s.html"%time.ctime().replace(" ","-")
             print(f"request_get: server problem, repeating the request. Server response saved to %s"%respname)   
             with open(respname, 'w') as f:
                 f.write(response)
@@ -88,9 +85,27 @@ def request_get(url):
                 return response_dir
     sys.exit(1)
 
+def request_get_po(url):
+    global token
+    curl_command = f'curl -s -X GET -H "authorization: {token}" {url}'
+
+    for rep in range(3):
+        response=os.popen(curl_command).read()
+        if not response:
+            print(f"request_get: no response from server")
+        elif "DOCTYPE html" in response:
+            respname = "server-error-%s.html"%time.ctime().replace(" ","-")
+            print(f"request_get: server problem, repeating the request. Server response saved to %s"%respname)   
+            with open(respname, 'w') as f:
+                f.write(response)
+        elif "Bad Request" in response:
+            print(f"request_get: curl commad corrupted")
+        else:
+            return response
+    sys.exit(1)
+
 def upload_file(fpath, furl):
-    global api_headers
-    token = api_headers['Authorization']
+    global token
     curl_command = f'curl -s -X POST -F overwrite=true -F file=@{fpath} -H "authorization: {token}" {furl}/'
     if verbose: print(f"Uploading file {fpath}")
     response=os.popen(curl_command).read()
@@ -140,7 +155,7 @@ def download_subprojects(project_name, slugs):
 
 #create path, download file, create hidden file
 def download_subproject_file(project_name, component_name, language_code):
-    global wsite, http_request
+    global wsite, token
     
     translations_url = f"{wsite}translations/{project_name}/{component_name}/{language_code}/"
     translations = request_get(translations_url)
@@ -154,12 +169,13 @@ def download_subproject_file(project_name, component_name, language_code):
     if verbose: print(f"  {filename}")
 
     url = f"{translations_url}/file/"
-    token = api_headers['Authorization']
     curl_command = f'curl -s -X GET -H "authorization: {token}" {url}'
-    response=os.popen(curl_command).read()
+    #for rep in range(3):
+        #response=os.popen(curl_command).read()
     #ipdb.set_trace()
+    po_data = request_get_po(url)
     with open(filename, 'w') as f:
-        f.write(response)
+        f.write(po_data)
     # create 'backup'of the file for reference - will never be changed
     shutil.copyfile(filename, get_dot_name(filename))
     return filename, f"{translations_url}/file"
@@ -280,10 +296,9 @@ api_key = os.environ.get('WEBLATE_API_KEY')
 wsite = f"https://translations.documentfoundation.org/api/"
 verbose = False
 lang="sk"
-api_headers = None
 
 def main():
-    global http_request, api_headers
+    global token
 
     #response = http.get("https://en.wikipedia.org/w/api.php")
     action = parsecmd()
@@ -299,7 +314,7 @@ def main():
         print("  Set environment variable WEBLATE_API_KEY or use the -k switch.") 
         usage()
         sys.exit(1)
-    api_headers = {'Accept': 'application/json, text/javascript', 'Authorization': ('Token '+api_key)}
+    token = 'Token '+api_key
 
     if action == "do":  #download
         subproject_slugs = get_subproject_slugs(projects[trans_project])
