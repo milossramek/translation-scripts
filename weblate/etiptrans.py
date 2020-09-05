@@ -76,7 +76,11 @@ def request_get(url):
             with open(respname, 'w') as f:
                 f.write(response)
         elif "Bad Request" in response:
-            print(f"request_get: curl commad corrupted")
+            print(f"request_get: curl commad corrupted (Bad Request)")
+        elif "Bad Gateway" in response:
+            print(f"request_get: curl commad failed (Bad Gateway)")
+        elif "<html>" in response:
+            print(f"request_get: curl commad corrupted (HTML response)")
         else:
             response_dir=json.loads(response)
             if 'detail' in response_dir:
