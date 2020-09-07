@@ -10,7 +10,7 @@ import polib
 
 
 def usage():
-    global wsite
+    global wsite, csv_import
     print()
     print("%s: Transfer extended tooltip string from the LibreOffice help translation files to UI files or vice versa"%sys.argv[0])
     print("Usage: ",sys.argv[0]+ " switches command")
@@ -21,20 +21,22 @@ def usage():
     print("\t-w site           Weblate site {%s}"%wsite)
     print("\t-k key            Weblate account key {taken from the WEBLATE_API_KEY environment variable}")
     print("\t-l lang_code      language code {%s}"%lang)
+    print("\t-c csv_file       csv file to import translations")
     print("Commands:")
     print("\tdownload\tDownload translation files for the project specidied by the -p switch")
     print("\tmodified\tList modified files")
     print("\tdifferences\tShow differences in modified files")
     print("\trevert\t\tRevert modified files to the original state")
     print("\ttransfer\ttransfer existing translations of extended tooltips from the other project")
+    print("\timport\t\timport translations from csv file (source<tab>target)")
     print("\tupload\t\tupload modified files to server")
     print("\thelp\t\tThis help")
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose
+    global wsite, api_key, trans_project, lang, verbose, csv_import
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvw:p:k:l:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvw:p:k:l:c:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -51,6 +53,8 @@ def parsecmd():
             api_key = a
         elif o in ("-l"):
             lang = a
+        elif o in ("-c"):
+            csv_import = a
         elif o in ("-h"):
             usage()
             sys.exit(0)
@@ -242,6 +246,41 @@ def transfer_tooltips_ui_to_help():
         for mf in modified_files:
             print("  %s"%mf)
 
+def import_translations_to_ui():
+    with open(csv_import, 'rt', encoding='utf-8') as ifile:
+        reader = csv.reader(ifile, delimiter='\t', quotechar='"',quoting=csv.QUOTE_MINIMAL)
+        ahelp_dir ={}
+        for row in reader:
+            ahelp_dir[row[0]] = row[1]
+
+    #ipdb.set_trace()
+    #load ui catalogs and find eventually translated nessages in ahelp_dir
+    ui_files = load_file_list(projects['ui'], lang)
+    modified_files = set()
+    ntrans=0
+    for uifile in ui_files:
+        changed = False
+        po = polib.pofile(uifile)
+        untranslated = po.untranslated_entries()
+        for entry in untranslated:
+            if entry.msgid in ahelp_dir and not entry.msgstr:
+                #ipdb.set_trace()
+                if ahelp_dir[entry.msgid]:
+                    #ipdb.set_trace()
+                    entry.msgstr = ahelp_dir[entry.msgid]
+                    print("  Translated: %s"%(entry.msgid))
+                    changed = True
+                    ntrans += 1
+        if changed:
+            modified_files.add(uifile)
+            po.save(uifile)
+
+    if modified_files:
+        print ("Number of imported translations: %s"%ntrans)
+        print ("Modified files:")
+        for mf in modified_files:
+            print("  %s"%mf)
+
 def transfer_tooltips_help_to_ui():
     #load messages with ahelp strings from help
     help_files = load_file_list(projects['help'], lang)
@@ -300,6 +339,7 @@ api_key = os.environ.get('WEBLATE_API_KEY')
 wsite = f"https://translations.documentfoundation.org/api/"
 verbose = False
 lang="sk"
+csv_import=""
 
 def main():
     global token
@@ -376,6 +416,16 @@ def main():
             transfer_tooltips_help_to_ui()
         else:
             transfer_tooltips_ui_to_help()
+
+    elif action == "im":    #import translations from csv file (-c switch)
+        if not csv_import:
+            print("\n%s import error: specify a csv file with translation'."%sys.argv[0])
+            usage()
+        else:
+            if trans_project == "ui":
+                import_translations_to_ui()
+            else:
+                print("\n%s: import translation not specified yet for help'."%sys.argv[0])
 
     elif action == "up":    #upload
         proj_files = load_file_list(projects[trans_project], lang)
