@@ -29,6 +29,7 @@ def usage():
     print("\trevert\t\tRevert modified files to the original state")
     print("\ttransfer\ttransfer existing translations of extended tooltips from the other project")
     print("\timport\t\timport translations from csv file (source<tab>target)")
+    print("\texport\t\texport all messages in csv format to stdout (source<tab>target)")
     print("\tupload\t\tupload modified files to server")
     print("\thelp\t\tThis help")
 
@@ -246,6 +247,16 @@ def transfer_tooltips_ui_to_help():
         for mf in modified_files:
             print("  %s"%mf)
 
+def export_messages_to_csv(project):
+    files = load_file_list(projects[project], lang)
+    csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    for file in files:
+        po = polib.pofile(file)
+        for entry in po:
+            eid = entry.msgid.replace("\n"," ") #remove newlines
+            estr = entry.msgstr.replace("\n"," ")   #remove newlines
+            csvWriter.writerow([eid,estr])
+
 def import_translations_to_ui():
     with open(csv_import, 'rt', encoding='utf-8') as ifile:
         reader = csv.reader(ifile, delimiter='\t', quotechar='"',quoting=csv.QUOTE_MINIMAL)
@@ -436,7 +447,10 @@ def main():
             shutil.copyfile(fpath, get_dot_name(fpath))
         pass
 
-    elif action == "he": 
+    elif action == "ex":    #export
+        export_messages_to_csv(trans_project)
+
+    elif action == "he":    #help
         print("he")
         usage()
         pass
