@@ -36,7 +36,7 @@ def usage():
     print("\trevert\t\tRevert modified files to the original state")
     print("\ttransfer\ttransfer existing translations of extended tooltips from the other project")
     print("\timport\t\timport translations from csv file (source<tab>target)")
-    print('\texport\t\texport all messages in csv format to stdout ("source","target")')
+    print('\texport\t\texport unique messages in csv format to stdout  as "source","target" with stripped newlines.')
     print("\tfixchar\t\tfix trailing characters and extra spaces")
     print("\tupload\t\tupload modified files to server")
     print("\thelp\t\tThis help")
@@ -257,16 +257,22 @@ def transfer_tooltips_ui_to_help():
         for mf in modified_files:
             print("  %s"%mf)
 
+# export unique messages without newlines
+# can be used for offline translation and subsequent import
+# can be used as a glossary in external translation tools as OmegaT
 def export_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
     csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    mset=set()
     for file in files:
         po = polib.pofile(file)
         for entry in po:
             if entry.obsolete: continue
             eid = entry.msgid.replace("\n"," ") #remove newlines
             estr = entry.msgstr.replace("\n"," ")   #remove newlines
-            csvWriter.writerow([eid,estr])
+            if not eid+estr in mset:
+                csvWriter.writerow([eid,estr])
+                mset.add(eid+estr)
 
 def strip_interpuct_end(txt, inp):
     while txt[-1] in inp and len(txt) > 1:
