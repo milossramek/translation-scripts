@@ -219,6 +219,7 @@ def transfer_tooltips_ui_to_help():
     for ufile in ui_files:
         po = polib.pofile(ufile)
         for entry in po:
+            if entry.obsolete: continue
             if "extended" in entry.msgctxt:
                 ahelp_id = entry.msgid
                 ahelp_str = entry.msgstr
@@ -236,6 +237,7 @@ def transfer_tooltips_ui_to_help():
         po = polib.pofile(hfile)
         untranslated = po.untranslated_entries()
         for entry in untranslated:
+            if entry.obsolete: continue
             if "ahelp" in entry.msgid:
                 ahelp_id=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)[0]
                 if ahelp_id in ahelp_dir and not entry.msgstr:
@@ -261,6 +263,7 @@ def export_messages_to_csv(project):
     for file in files:
         po = polib.pofile(file)
         for entry in po:
+            if entry.obsolete: continue
             eid = entry.msgid.replace("\n"," ") #remove newlines
             estr = entry.msgstr.replace("\n"," ")   #remove newlines
             csvWriter.writerow([eid,estr])
@@ -352,6 +355,7 @@ def import_translations_to_ui():
         po = polib.pofile(uifile)
         untranslated = po.untranslated_entries()
         for entry in untranslated:
+            if entry.obsolete: continue
             if entry.msgid in ahelp_dir and not entry.msgstr:
                 #ipdb.set_trace()
                 if ahelp_dir[entry.msgid]:
@@ -377,6 +381,7 @@ def transfer_tooltips_help_to_ui():
     for hfile in help_files:
         po = polib.pofile(hfile)
         for entry in po:
+            if entry.obsolete: continue
             if "ahelp" in entry.msgid:
                 ahelp_id=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)[0]
                 ahelp_str=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgstr)
