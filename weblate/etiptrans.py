@@ -268,7 +268,7 @@ def export_messages_to_csv(project):
             estr = entry.msgstr.replace("\n"," ")   #remove newlines
             csvWriter.writerow([eid,estr])
 
-def strip_interpuct_end(txt, inp=".:;…"):
+def strip_interpuct_end(txt, inp):
     while txt[-1] in inp and len(txt) > 1:
         txt = txt[:-1]
     return txt
