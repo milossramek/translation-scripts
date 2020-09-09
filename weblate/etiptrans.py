@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 #https://github.com/WeblateOrg/weblate/issues/1476
 
+# spellcheck translated messages
+#cat ui_sk.csv |tr " " "\n" | tr "/-" "\n"| tr "]" "." |sed -e "s/[.,\"()<*>=:;%?&'{}[]//g"|sed -e "s/[0-9\!\^„“#]//g"|sed -e "s/.*[a-Z][A-Z].*//"|sort|uniq|aspell -l sk list
+
+# edit all by sed
+#for i in `find libo_ui-master -name [a-Z]\*.po`; do sed -i -f err-sel.sed $i; done
+
+
 import sys, getopt, csv, re, time
 import os, shutil, filecmp
 from os import path
@@ -29,7 +36,8 @@ def usage():
     print("\trevert\t\tRevert modified files to the original state")
     print("\ttransfer\ttransfer existing translations of extended tooltips from the other project")
     print("\timport\t\timport translations from csv file (source<tab>target)")
-    print("\texport\t\texport all messages in csv format to stdout (source<tab>target)")
+    print('\texport\t\texport all messages in csv format to stdout ("source","target")')
+    print("\tfixchar\t\tfix trailing characters and extra spaces")
     print("\tupload\t\tupload modified files to server")
     print("\thelp\t\tThis help")
 
@@ -257,6 +265,76 @@ def export_messages_to_csv(project):
             estr = entry.msgstr.replace("\n"," ")   #remove newlines
             csvWriter.writerow([eid,estr])
 
+def strip_interpuct_end(txt, inp=".:;…"):
+    while txt[-1] in inp and len(txt) > 1:
+        txt = txt[:-1]
+    return txt
+
+# unifies message trailing chracters and removes extra space in a message
+# the fixes were adjusted to the actual situation in the Slovak translation
+# prior to upload check the result using etiptrans.py -p ui diff
+def fix_trailing_characters(project):
+    files = load_file_list(projects[project], lang)
+    modified_files = set()
+    for file in files:
+        changed = False
+        po = polib.pofile(file)
+        for entry in po:
+            if not entry.msgstr or entry.obsolete:
+                continue
+            #remove trailing interpunction
+            if entry.msgid in ["...", "'", ".", ":", "!"]:
+                continue
+            # add interpunction from msgid
+            if entry.msgid[-3:] == "...":
+                msgstr = strip_interpuct_end(entry.msgstr,".…:")
+                entry.msgstr = msgstr+"..."
+                changed = True
+            elif entry.msgid[-1] == "…":
+                msgstr = strip_interpuct_end(entry.msgstr,".…")
+                entry.msgstr = msgstr+"..."
+                changed = True
+            elif entry.msgid[-1] in ".":
+                msgstr = strip_interpuct_end(entry.msgstr,",. !")
+                entry.msgstr = msgstr+entry.msgid[-1]
+                changed = True
+            elif entry.msgid[-1] in ":":
+                msgstr = strip_interpuct_end(entry.msgstr," :")
+                entry.msgstr = msgstr+entry.msgid[-1]
+                changed = True
+            elif entry.msgid[-1] in "!":
+                msgstr = strip_interpuct_end(entry.msgstr," !.")
+                entry.msgstr = msgstr+entry.msgid[-1]
+                changed = True
+            elif entry.msgid[-1] in " ":
+                msgstr = strip_interpuct_end(entry.msgstr," ")
+                entry.msgstr = msgstr+entry.msgid[-1]
+                changed = True
+            else:
+                if entry.msgstr[-1] in ".: ":
+                    if entry.msgstr[-3:] == '...':
+                        entry.msgstr = entry.msgstr[:-3]
+                    else:
+                        entry.msgstr = entry.msgstr[:-1]
+                    changed = True
+                    pass
+            # fix spaces
+            if "  " in entry.msgstr:
+                entry.msgstr = entry.msgstr.replace("  ", " ")
+                changed = True
+            if " , " in entry.msgstr:
+                entry.msgstr = entry.msgstr.replace(" , ", ", ")
+                changed = True
+        if changed:
+            modified_files.add(file)
+            po.save(file)
+    if modified_files:
+        print ("Modified files:")
+        for mf in modified_files:
+            print("  %s"%mf)
+
+
+
 def import_translations_to_ui():
     with open(csv_import, 'rt', encoding='utf-8') as ifile:
         reader = csv.reader(ifile, delimiter='\t', quotechar='"',quoting=csv.QUOTE_MINIMAL)
@@ -405,9 +483,9 @@ def main():
             num = 0
             for entry in po:
                 if orig_dir["%04d %s"%(num,entry.msgid)] != entry.msgstr:
-                    print("\t%s"%entry.msgid)
-                    print("\t< %s"%orig_dir["%04d %s"%(num,entry.msgid)])
-                    print("\t> %s"%entry.msgstr)
+                    print("\t'%s'"%entry.msgid)
+                    print("\t< '%s'"%orig_dir["%04d %s"%(num,entry.msgid)])
+                    print("\t> '%s'"%entry.msgstr)
                     print()
                 num += 1
 
@@ -449,6 +527,9 @@ def main():
 
     elif action == "ex":    #export
         export_messages_to_csv(trans_project)
+
+    elif action == "fi":    #fix trailing characters
+        fix_trailing_characters(trans_project)
 
     elif action == "he":    #help
         print("he")
