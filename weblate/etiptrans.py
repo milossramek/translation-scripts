@@ -341,12 +341,12 @@ def fix_trailing_characters(project):
 def import_translations_to_ui():
     with open(csv_import, 'rt', encoding='utf-8') as ifile:
         reader = csv.reader(ifile, delimiter='\t', quotechar='"',quoting=csv.QUOTE_MINIMAL)
-        ahelp_dir ={}
+        import_dir ={}
         for row in reader:
-            ahelp_dir[row[0]] = row[1]
+            import_dir[row[0]] = row[1]
 
     #ipdb.set_trace()
-    #load ui catalogs and find eventually translated nessages in ahelp_dir
+    #load ui catalogs and find eventually translated messages in import_dir
     ui_files = load_file_list(projects['ui'], lang)
     modified_files = set()
     ntrans=0
@@ -356,11 +356,11 @@ def import_translations_to_ui():
         untranslated = po.untranslated_entries()
         for entry in untranslated:
             if entry.obsolete: continue
-            if entry.msgid in ahelp_dir and not entry.msgstr:
+            if entry.msgid in import_dir and not entry.msgstr:
                 #ipdb.set_trace()
-                if ahelp_dir[entry.msgid]:
+                if import_dir[entry.msgid]:
                     #ipdb.set_trace()
-                    entry.msgstr = ahelp_dir[entry.msgid]
+                    entry.msgstr = import_dir[entry.msgid]
                     print("  Translated: %s"%(entry.msgid))
                     changed = True
                     ntrans += 1
