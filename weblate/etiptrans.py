@@ -28,24 +28,25 @@ def usage():
     print("\t-w site           Weblate site {%s}"%wsite)
     print("\t-k key            Weblate account key {taken from the WEBLATE_API_KEY environment variable}")
     print("\t-l lang_code      language code {%s}"%lang)
-    print("\t-c csv_file       csv file to import translations")
-    print("Commands:")
+    print("Commands (with their specific switches):")
     print("\tdownload\tDownload translation files for the project specidied by the -p switch")
     print("\tmodified\tList modified files")
     print("\tdifferences\tShow differences in modified files")
     print("\trevert\t\tRevert modified files to the original state")
     print("\ttransfer\ttransfer existing translations of extended tooltips from the other project")
     print("\timport\t\timport translations from csv file (source<tab>target)")
+    print("\t\t-c csv_file       csv file to import translations")
     print('\texport\t\texport unique messages in csv format to stdout  as "source","target" with stripped newlines.')
+    print("\t\t-a                remove accelerator characters _ and ~")
     print("\tfixchar\t\tfix trailing characters and extra spaces")
     print("\tupload\t\tupload modified files to server")
     print("\thelp\t\tThis help")
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import
+    global wsite, api_key, trans_project, lang, verbose, csv_import, remove_accelerators
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvw:p:k:l:c:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvaw:p:k:l:c:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -64,6 +65,8 @@ def parsecmd():
             lang = a
         elif o in ("-c"):
             csv_import = a
+        elif o in ("-a"):
+            remove_accelerators = True
         elif o in ("-h"):
             usage()
             sys.exit(0)
@@ -268,8 +271,12 @@ def export_messages_to_csv(project):
         po = polib.pofile(file)
         for entry in po:
             if entry.obsolete: continue
-            eid = entry.msgid.replace("\n"," ") #remove newlines
-            estr = entry.msgstr.replace("\n"," ")   #remove newlines
+            #remove newlines, starting and ending spaces and accelerators
+            eid = entry.msgid.replace("\n"," ").strip(" ") 
+            estr = entry.msgstr.replace("\n"," ").strip(" ")
+            if remove_accelerators:
+                eid = eid.replace("_","").replace("~","")
+                estr = estr.replace("_","").replace("~","")
             if not eid+estr in mset:
                 csvWriter.writerow([eid,estr])
                 mset.add(eid+estr)
@@ -333,6 +340,9 @@ def fix_trailing_characters(project):
                 changed = True
             if " , " in entry.msgstr:
                 entry.msgstr = entry.msgstr.replace(" , ", ", ")
+                changed = True
+            if entry.msgstr[0] == " " and entry.msgid[0] != " ":
+                entry.msgstr = entry.msgstr[1:]
                 changed = True
         if changed:
             modified_files.add(file)
@@ -440,6 +450,7 @@ wsite = f"https://translations.documentfoundation.org/api/"
 verbose = False
 lang="sk"
 csv_import=""
+remove_accelerators=False
 
 def main():
     global token
