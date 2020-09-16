@@ -14,6 +14,7 @@ from os import path
 import ipdb
 import json
 import polib
+from collections import defaultdict
 
 
 def usage():
@@ -38,15 +39,18 @@ def usage():
     print("\t\t-c csv_file       csv file to import translations")
     print('\texport\t\texport unique messages in csv format to stdout  as "source","target" with stripped newlines.')
     print("\t\t-a                remove accelerator characters _ and ~")
+    print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid")
+    print("\t\t-r                export only conflicting translations (reversed, more than one msgid for one msgstr")
+    print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui")
     print("\tfixchar\t\tfix trailing characters and extra spaces")
     print("\tupload\t\tupload modified files to server")
     print("\thelp\t\tThis help")
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, remove_accelerators
+    global wsite, api_key, trans_project, lang, verbose, csv_import, remove_accelerators,conflicts_only, tooltips_only, conflicts_only_rev
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvaw:p:k:l:c:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvafrtw:p:k:l:c:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -67,6 +71,12 @@ def parsecmd():
             csv_import = a
         elif o in ("-a"):
             remove_accelerators = True
+        elif o in ("-f"):
+            conflicts_only = True
+        elif o in ("-r"):
+            conflicts_only_rev = True
+        elif o in ("-t"):
+            tooltips_only = True
         elif o in ("-h"):
             usage()
             sys.exit(0)
@@ -271,9 +281,19 @@ def export_messages_to_csv(project):
         po = polib.pofile(file)
         for entry in po:
             if entry.obsolete: continue
-            #remove newlines, starting and ending spaces and accelerators
-            eid = entry.msgid.replace("\n"," ").strip(" ") 
-            estr = entry.msgstr.replace("\n"," ").strip(" ")
+
+            if tooltips_only and project == "help":
+                if not "<ahelp" in entry.msgid: continue
+                eid=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)[0]
+                estr=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgstr)
+                estr = estr[0] if estr else ""
+            elif tooltips_only and project == "ui":
+                if not "extended" in entry.msgctxt: continue
+                eid = entry.msgid
+                estr = entry.msgstr
+
+            eid = eid.replace("\n"," ").strip(" ") 
+            estr = estr.replace("\n"," ").strip(" ")
             if remove_accelerators:
                 eid = eid.replace("_","").replace("~","")
                 estr = estr.replace("_","").replace("~","")
@@ -281,13 +301,61 @@ def export_messages_to_csv(project):
                 csvWriter.writerow([eid,estr])
                 mset.add(eid+estr)
 
+# export conflicting translations
+def export_conflicting_messages_to_csv(project):
+    files = load_file_list(projects[project], lang)
+    csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    mdict = defaultdict(list)
+    for file in files:
+        po = polib.pofile(file)
+        for entry in po:
+
+            if entry.obsolete: continue
+            if tooltips_only and not ("<ahelp" in entry.msgid or "extended" in entry.msgctxt): continue
+
+            if trans_project == 'ui':
+                #remove newlines, starting and ending spaces
+                eid = entry.msgid.replace("\n"," ").strip(" ") 
+                estr = entry.msgstr.replace("\n"," ").strip(" ")
+            else: #help
+                if tooltips_only:
+                    eid=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)
+                    estr=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgstr)
+                    #if not estr: continue
+                    eid=eid[0]
+                    estr=estr[0]
+                else:
+                    eid=entry.msgid
+                    estr=entry.msgstr
+                #ipdb.set_trace()
+                if conflicts_only_rev:
+                    aux=eid
+                    eid=estr
+                    estr=aux
+                    #ipdb.set_trace()
+                    pass
+            #remove accelerators
+            if remove_accelerators:
+                eid = eid.replace("_","").replace("~","")
+                estr = estr.replace("_","").replace("~","")
+            #add to the dictionary
+            if not eid in mdict:
+                mdict[eid].append(estr)
+            elif estr not in mdict[eid]:
+                mdict[eid].append(estr)
+    # export only those with more than one entry
+    for eid in mdict:
+        if len(mdict[eid]) > 1:
+            for estr in mdict[eid]:
+                csvWriter.writerow([eid,estr])
+
 def strip_interpuct_end(txt, inp):
     while txt[-1] in inp and len(txt) > 1:
         txt = txt[:-1]
     return txt
 
 # unifies message trailing chracters and removes extra space in a message
-# the fixes were adjusted to the actual situation in the Slovak translation
+# the fixes were adjusted to the actual situation in the  Slovak translation
 # prior to upload check the result using etiptrans.py -p ui diff
 def fix_trailing_characters(project):
     files = load_file_list(projects[project], lang)
@@ -451,6 +519,9 @@ verbose = False
 lang="sk"
 csv_import=""
 remove_accelerators=False
+conflicts_only=False
+conflicts_only_rev=False
+tooltips_only=False
 
 def main():
     global token
@@ -548,7 +619,10 @@ def main():
         pass
 
     elif action == "ex":    #export
-        export_messages_to_csv(trans_project)
+        if conflicts_only or conflicts_only_rev:
+            export_conflicting_messages_to_csv(trans_project)
+        else:
+            export_messages_to_csv(trans_project)
 
     elif action == "fi":    #fix trailing characters
         fix_trailing_characters(trans_project)
