@@ -321,19 +321,19 @@ def export_conflicting_messages_to_csv(project):
                 if tooltips_only:
                     eid=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)
                     estr=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgstr)
-                    #if not estr: continue
+                    if not estr: continue
                     eid=eid[0]
                     estr=estr[0]
                 else:
                     eid=entry.msgid
                     estr=entry.msgstr
                 #ipdb.set_trace()
-                if conflicts_only_rev:
-                    aux=eid
-                    eid=estr
-                    estr=aux
-                    #ipdb.set_trace()
-                    pass
+            if conflicts_only_rev:
+                aux=eid
+                eid=estr
+                estr=aux
+                #ipdb.set_trace()
+                pass
             #remove accelerators
             if remove_accelerators:
                 eid = eid.replace("_","").replace("~","")
@@ -429,7 +429,6 @@ def import_translations_to_ui():
         for row in reader:
             import_dir[row[0]] = row[1]
 
-    #ipdb.set_trace()
     #load ui catalogs and find eventually translated messages in import_dir
     ui_files = load_file_list(projects['ui'], lang)
     modified_files = set()
@@ -437,17 +436,20 @@ def import_translations_to_ui():
     for uifile in ui_files:
         changed = False
         po = polib.pofile(uifile)
-        untranslated = po.untranslated_entries()
-        for entry in untranslated:
+        for entry in po:
             if entry.obsolete: continue
-            if entry.msgid in import_dir and not entry.msgstr:
+            #if entry.msgid in import_dir and not entry.msgstr:
+            if entry.msgid in import_dir:
+                if import_dir[entry.msgid] and not entry.msgstr:
+                    print("  New translation: %s"%(entry.msgid))
+                elif import_dir[entry.msgid] and entry.msgstr:
+                    print("  Replaced translation: %s"%(entry.msgid))
+                else:
+                    print("  Removed translation: %s"%(entry.msgid))
                 #ipdb.set_trace()
-                if import_dir[entry.msgid]:
-                    #ipdb.set_trace()
-                    entry.msgstr = import_dir[entry.msgid]
-                    print("  Translated: %s"%(entry.msgid))
-                    changed = True
-                    ntrans += 1
+                entry.msgstr = import_dir[entry.msgid]
+                changed = True
+                ntrans += 1
         if changed:
             modified_files.add(uifile)
             po.save(uifile)
