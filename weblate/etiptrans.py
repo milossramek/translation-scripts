@@ -295,8 +295,8 @@ def export_messages_to_csv(project):
                 eid = entry.msgid
                 estr = entry.msgstr
 
-            eid = eid.replace("\n"," ").strip(" ") 
-            estr = estr.replace("\n"," ").strip(" ")
+            eid = eid.replace("\n",line_break_placeholder)
+            estr = estr.replace("\n",line_break_placeholder)
             if remove_accelerators:
                 eid = eid.replace("_","").replace("~","")
                 estr = estr.replace("_","").replace("~","")
@@ -318,8 +318,8 @@ def export_conflicting_messages_to_csv(project):
 
             if trans_project == 'ui':
                 #remove newlines, starting and ending spaces
-                eid = entry.msgid.replace("\n"," ").strip(" ") 
-                estr = entry.msgstr.replace("\n"," ").strip(" ")
+                eid = entry.msgid.replace("\n",line_break_placeholder)
+                estr = entry.msgstr.replace("\n",line_break_placeholder)
             else: #help
                 if tooltips_only:
                     eid=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)
@@ -476,7 +476,8 @@ def import_translations_to_ui():
                 else:
                     print("  Removed translation: %s"%(entry.msgid))
                 #ipdb.set_trace()
-                entry.msgstr = import_dir[entry.msgid]
+                #remove the placeholder
+                entry.msgstr = import_dir[entry.msgid].replace(line_break_placeholder,"\t")
                 changed = True
                 ntrans += 1
         if changed:
@@ -554,6 +555,9 @@ conflicts_only=False
 conflicts_only_rev=False
 tooltips_only=False
 translated_other_side=False
+
+#placeholder to mark line breaks in export
+line_break_placeholder="<ASDFGHJK>"
 
 def main():
     global token
