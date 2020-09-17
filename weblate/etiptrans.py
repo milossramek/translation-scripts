@@ -42,15 +42,16 @@ def usage():
     print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid")
     print("\t\t-r                export only conflicting translations (reversed, more than one msgid for one msgstr")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui")
+    print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
     print("\tfixchar\t\tfix trailing characters and extra spaces")
     print("\tupload\t\tupload modified files to server")
     print("\thelp\t\tThis help")
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, remove_accelerators,conflicts_only, tooltips_only, conflicts_only_rev
+    global wsite, api_key, trans_project, lang, verbose, csv_import, remove_accelerators,conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvafrtw:p:k:l:c:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvafrtow:p:k:l:c:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -77,6 +78,8 @@ def parsecmd():
             conflicts_only_rev = True
         elif o in ("-t"):
             tooltips_only = True
+        elif o in ("-o"):
+            translated_other_side = True
         elif o in ("-h"):
             usage()
             sys.exit(0)
@@ -349,6 +352,32 @@ def export_conflicting_messages_to_csv(project):
             for estr in mdict[eid]:
                 csvWriter.writerow([eid,estr])
 
+#export translated tooltips, if they are translated on the 'other' side
+#useful if tooltips on the 'other' side (help) were of poor quality, but still transferred to ui
+def export_etips_trans_help():
+    #load messages with ahelp strings from help
+    help_files = load_file_list(projects['help'], lang)
+    ahelp_dir ={}
+    for hfile in help_files:
+        po = polib.pofile(hfile)
+        for entry in po:
+            if entry.obsolete: continue
+            if "ahelp" in entry.msgid:
+                ahelp_id=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)[0]
+                ahelp_str=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgstr)
+                if ahelp_str:
+                    ahelp_dir[ahelp_id] = [ahelp_str[0], hfile]
+                pass
+    #load ui catalogs and find if they have translated counterpart in help
+    csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    ui_files = load_file_list(projects['ui'], lang)
+    for uifile in ui_files:
+        po = polib.pofile(uifile)
+        for entry in po:
+            if not "extended" in entry.msgctxt: continue
+            if entry.msgid in ahelp_dir and entry.msgstr:
+                csvWriter.writerow([entry.msgid, entry.msgstr, uifile])
+
 def strip_interpuct_end(txt, inp):
     while txt[-1] in inp and len(txt) > 1:
         txt = txt[:-1]
@@ -524,6 +553,7 @@ remove_accelerators=False
 conflicts_only=False
 conflicts_only_rev=False
 tooltips_only=False
+translated_other_side=False
 
 def main():
     global token
@@ -623,6 +653,11 @@ def main():
     elif action == "ex":    #export
         if conflicts_only or conflicts_only_rev:
             export_conflicting_messages_to_csv(trans_project)
+        elif translated_other_side:
+            if trans_project == "ui":
+                export_etips_trans_help()
+            else:
+                print("\n%s: not implemented yet for help'."%sys.argv[0])
         else:
             export_messages_to_csv(trans_project)
 
