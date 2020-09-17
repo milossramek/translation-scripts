@@ -334,6 +334,10 @@ def export_conflicting_messages_to_csv(project):
                     eid=entry.msgid
                     estr=entry.msgstr
                 #ipdb.set_trace()
+
+            # ignore untranslated
+            if not estr: continue
+            
             if conflicts_only_rev:
                 aux=eid
                 eid=estr
