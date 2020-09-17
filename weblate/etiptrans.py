@@ -311,9 +311,9 @@ def export_messages_to_csv(project):
 def export_conflicting_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
     csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-    mdict = defaultdict(list)
-    for file in files:
-        po = polib.pofile(file)
+    conf_dict = defaultdict(list)
+    for fname in files:
+        po = polib.pofile(fname)
         for entry in po:
 
             if entry.obsolete: continue
@@ -349,14 +349,14 @@ def export_conflicting_messages_to_csv(project):
                 eid = eid.replace("_","").replace("~","")
                 estr = estr.replace("_","").replace("~","")
             #add to the dictionary
-            if not eid in mdict:
-                mdict[eid].append(estr)
-            elif estr not in mdict[eid]:
-                mdict[eid].append(estr)
+            if not eid in conf_dict:
+                conf_dict[eid].append(estr)
+            elif estr not in conf_dict[eid]:
+                conf_dict[eid].append(estr)
     # export only those with more than one entry
-    for eid in mdict:
-        if len(mdict[eid]) > 1:
-            for estr in mdict[eid]:
+    for eid in conf_dict:
+        if len(conf_dict[eid]) > 1:
+            for estr in conf_dict[eid]:
                 csvWriter.writerow([eid,estr])
 
 #export translated tooltips, if they are translated on the 'other' side
