@@ -294,6 +294,9 @@ def export_messages_to_csv(project):
                 if not "extended" in entry.msgctxt: continue
                 eid = entry.msgid
                 estr = entry.msgstr
+            else:
+                eid = entry.msgid
+                estr = entry.msgstr
 
             eid = eid.replace("\n",line_break_placeholder)
             estr = estr.replace("\n",line_break_placeholder)
