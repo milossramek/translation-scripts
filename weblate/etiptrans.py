@@ -463,7 +463,7 @@ def fix_trailing_characters(project):
 
 
 
-def import_translations_to_ui():
+def import_translations(project):
     with open(csv_import, 'rt', encoding='utf-8') as ifile:
         reader = csv.reader(ifile, delimiter='\t', quotechar='"',quoting=csv.QUOTE_MINIMAL)
         import_dir ={}
@@ -471,7 +471,7 @@ def import_translations_to_ui():
             import_dir[row[0]] = row[1]
 
     #load ui catalogs and find eventually translated messages in import_dir
-    ui_files = load_file_list(projects['ui'], lang)
+    ui_files = load_file_list(projects[project], lang)
     modified_files = set()
     ntrans=0
     for uifile in ui_files:
@@ -653,9 +653,9 @@ def main():
             usage()
         else:
             if trans_project == "ui":
-                import_translations_to_ui()
+                import_translations("ui")
             else:
-                print("\n%s: import translation not specified yet for help'."%sys.argv[0])
+                import_translations("help")
 
     elif action == "up":    #upload
         proj_files = load_file_list(projects[trans_project], lang)
