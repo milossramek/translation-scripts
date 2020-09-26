@@ -246,6 +246,7 @@ def transfer_tooltips_ui_to_help():
                 pass
     #load help catalogs and find eventually translated nessages in ahelp_dir
     #ipdb.set_trace()
+    csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
     help_files = load_file_list(projects['help'], lang)
     modified_files = set()
     for hfile in help_files:
@@ -255,23 +256,22 @@ def transfer_tooltips_ui_to_help():
         for entry in untranslated:
             if entry.obsolete: continue
             if "ahelp" in entry.msgid:
+                notags=re.sub(r"<[^<]*>","",entry.msgid)
                 ahelp_id=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)[0]
                 if ahelp_id in ahelp_dir and not entry.msgstr:
                     if ahelp_dir[ahelp_id][0]:   # is translated
                         entry.msgstr = entry.msgid.replace(ahelp_id,ahelp_dir[ahelp_id][0])
-                        print("  Translated: %s"%(ahelp_id))
+                        if notags==ahelp_id:
+                            csvWriter.writerow(["Translated", entry.msgid, entry.msgstr])
+                        else:
+                            csvWriter.writerow(["Partially translated", entry.msgid, entry.msgstr])
                         changed = True
                     else:
-                        print("Untranslated in  '%s': '%s'"%(ahelp_dir[ahelp_id][1], ahelp_id))
+                        csvWriter.writerow(["Untranslated", entry.msgid, entry.msgstr])
                     pass
         if changed:
             modified_files.add(hfile)
             po.save(hfile)
-
-    if modified_files:
-        print ("Modified files:")
-        for mf in modified_files:
-            print("  %s"%mf)
 
 # export unique messages without newlines
 # can be used for offline translation and subsequent import
@@ -311,7 +311,10 @@ def export_messages_to_csv(project):
 def export_conflicting_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
     csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    # dictionary with potentially conflicting entries (if len>1)
     conf_dict = defaultdict(list)
+    # a set to detect repetitions
+    repetitions = set()
     for fname in files:
         po = polib.pofile(fname)
         for entry in po:
@@ -349,10 +352,12 @@ def export_conflicting_messages_to_csv(project):
                 eid = eid.replace("_","").replace("~","")
                 estr = estr.replace("_","").replace("~","")
             #add to the dictionary
-            if not eid in conf_dict:
-                conf_dict[eid].append(estr)
-            elif estr not in conf_dict[eid]:
-                conf_dict[eid].append(estr)
+            if eid+estr.lower() not in repetitions: #ignore case in estr when detecting conflicts
+                repetitions.add(eid+estr.lower())
+                if not eid in conf_dict:
+                    conf_dict[eid].append(estr)
+                elif estr not in conf_dict[eid]:
+                    conf_dict[eid].append(estr)
     # export only those with more than one entry
     for eid in conf_dict:
         if len(conf_dict[eid]) > 1:
