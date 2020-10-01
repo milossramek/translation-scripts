@@ -36,7 +36,10 @@ def usage():
     print("\trevert\t\tRevert modified files to the original state")
     print("\ttransfer\ttransfer existing translations of extended tooltips from the other project")
     print("\timport\t\timport translations from csv file (source<tab>target)")
-    print("\t\t-c csv_file       csv file to import translations")
+    print("\t\t-c csv_file       csv file to import translations.")
+    print("\t\t\t\t  Structure:")
+    print("\t\t\t\t   source<tab>target    (replace all)")
+    print("\t\t\t\t   source<tab>current_target<tab>new_target    (replace only specific translations)")
     print('\texport\t\texport unique messages in csv format to stdout  as "source","target" with stripped newlines.')
     print("\t\t-a                remove accelerator characters _ and ~")
     print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid")
@@ -467,8 +470,14 @@ def import_translations(project):
     with open(csv_import, 'rt', encoding='utf-8') as ifile:
         reader = csv.reader(ifile, delimiter='\t', quotechar='"',quoting=csv.QUOTE_MINIMAL)
         import_dir ={}
+        ncols=0
         for row in reader:
-            import_dir[row[0]] = row[1]
+            if ncols == 0:
+                ncols = len(row)
+            if len(row) != ncols:
+                print(f"\n%s import error: inconsistent number of columns at %s."%(sys.argv[0], row))
+                sys.exit(1)
+            import_dir[row[0]] = row[1:]
 
     #load ui catalogs and find eventually translated messages in import_dir
     ui_files = load_file_list(projects[project], lang)
@@ -480,18 +489,26 @@ def import_translations(project):
         for entry in po:
             if entry.obsolete: continue
             #if entry.msgid in import_dir and not entry.msgstr:
-            if entry.msgid in import_dir:
-                if import_dir[entry.msgid] and not entry.msgstr:
-                    print("  New translation: %s"%(entry.msgid))
-                elif import_dir[entry.msgid] and entry.msgstr:
-                    print("  Replaced translation: %s"%(entry.msgid))
-                else:
-                    print("  Removed translation: %s"%(entry.msgid))
-                #ipdb.set_trace()
-                #remove the placeholder
-                entry.msgstr = import_dir[entry.msgid].replace(line_break_placeholder,"\t")
-                changed = True
-                ntrans += 1
+            # 2 columns, just replace, useful if no translation exists
+            if ncols == 2:
+                if entry.msgid in import_dir:
+                    if import_dir[entry.msgid] and not entry.msgstr:
+                        print("  New translation: %s"%(entry.msgid))
+                    else:
+                        print("  Replaced translation: %s"%(entry.msgid))
+                    #ipdb.set_trace()
+                    entry.msgstr = import_dir[entry.msgid][0]
+                    changed = True
+                    ntrans += 1
+            # 3 columns, replace matching translation
+            else :
+                if entry.msgid in import_dir:
+                    if entry.msgstr == import_dir[entry.msgid][0]:
+                        print("  Replaced translation: %s"%(entry.msgid))
+                        #ipdb.set_trace()
+                        entry.msgstr = import_dir[entry.msgid][1]
+                        changed = True
+                        ntrans += 1
         if changed:
             modified_files.add(uifile)
             po.save(uifile)
