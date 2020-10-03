@@ -569,7 +569,10 @@ def load_file_list(trans_project, lang):
 
 projects = {
         'help': "libo_help-master",
-        'ui': "libo_ui-master"
+        'ui': "libo_ui-master",
+        'ui70': "libo_ui-7-0",
+        'ui64': "libo_ui-6-4",
+        'ui63': "libo_ui-6-3"
         }
 trans_project=None
 
