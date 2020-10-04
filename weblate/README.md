@@ -1,49 +1,116 @@
-# weblate
-Scripts related to translation of the LibreOffice user interface, help and other files at https://translations.documentfoundation.org/.
+# Weblate
+Scripts related to translation of the LibreOffice user interface, help and other files. LibreOffice uses for translation the [Weblate](https://weblate.org) tool.
 ## etiptrans.py
-A script to transfer translation of LibreOffice extended tooltips between the Help translation files and the UI translations files.
+A script to download, modify and upload LibreOffice translation subprojects (in Weblate called *slugs*)  from the [LibreOffice Weblate server](https://translations.documentfoundation.org/) by means of the Weblate's API.
 
-Originally, strings of extended tooltips were a part of LibreOffice/OpenOffice Help, where they were marked by the `<ahelp>` tags. Later, these strings became a part of the UI translation po files, where they were marked by `msgctxt "extended tip..."`.
+On download the script creates a directory with two copies of each subproject's po file. One of them, starting by dot, is in Linux not visible in regular file viewing and serves as a backup, for example to cancel current changes.
 
-Transfer of the the tooltips from Help to UI started in 2020, when first of the 6000+ tooltips we added there. The original tooltips remain part of the help text.
+Currently the following sub projects are supported:
+* 'help': "libo_help-master",
+* 'ui': "libo_ui-master",
+* 'ui70': "libo_ui-7-0",
+* 'ui64': "libo_ui-6-4",
+* 'ui63': "libo_ui-6-3"
 
-### Authentication
-The required api key can be found in Weblate in Settings > Api access.  The script can read the key from the `WEBLATE_API_KEY` environment variable. 
+Abbreviations on the left are shortcuts used in the script commands. The slug names on the right are used as directory names.
 
-### Basic documentation
-Try `./epitrans.py help` or `.epitrans.y -h`
+Using the Weblate's web interface one translates the 'master' sub projects and translations are propagated to other related sub projects (libo_ui-master > libo_ui-7-0 etc.). This does not work when uploading po files using the Weblate's API, so one has to transfer translations between subprojects using this script (libo_ui-master > libo_ui-7-0 etc.) and then upload them separately.
 
-### Download translation files, transfer tooltips and upload modified filed to server:
-Run the commands. Use the -v switch to see what is being downloaded
-  1. `./epitrans.py -p help -l sk -v download`
-  1. `./epitrans.py -p ui -l sk -v download`
-  1. `./epitrans.py -p ui -l sk transfer`
-  1. `./epitrans.py -p ui -l sk upload`
+### Using the script
 
-The `download` command will create directory `libo_help-master` (`libo_ui-master`) with po files. Each file has a hidden copy (do not change them). If downloading hangs (this happens sometimes), just cancel the script and restart it.
+`etiptrans.py switches command`
 
-The `transfer` command lists all relevant tooltips. If they are not translated in the help, a notice is displayed:
+for example, `etiptrans.py -h` displays a help.
 
-`Untranslated in libo_help-master/sk/helpcontent2/source/text/shared/optionen.po: Type the name of...`
+#### Switches
+Some switches apply to all commands, some switches are commands specific.
 
-The required untranslated help strings can be translated (common editor or any relevant program) and the the `transfer` command can be repeated, so that the fresh translation is transtfered to UI. Thus, identical translation in the help and UI is secured.
+Common switches are:
 
-The `upload` command uploads the modified files. If also help files were translated, then upload also them by `./epitrans.py -p help -l sk upload`.
+```
+-h                this usage
+-w site           Weblate site URL {taken from the WEBLATE_API_SITE environment variable}
+-p project        Abbreviation of Weblate's subproject (slug) ['help', 'ui', 'ui70', 'ui64', 'ui63']
+-k key            Weblate account key {taken from the WEBLATE_API_KEY environment variable}
+-l lang_code      language code {taken from the WEBLATE_API_LANG environment variable}
 
-### Other commands
-`modified`: List modified files
+```
 
-`differences`: Show differences in modified files
+When using `bash`, set the environment variables in the `.bashrc` file:
+```
+export WEBLATE_API_SITE=https://translations.documentfoundation.org/api/
+export WEBLATE_API_KEY=vt6ttvT6t9T976t&^t76T76vt^tv7^Tv76tV6tv6t
+export WEBLATE_API_LANG=sk
+```
+You can find your key in Weblate's GUI [Settings](https://translations.documentfoundation.org/accounts/profile/#api) (Your profile > Settings > API Access, the icon in the upper right corner).
 
-`revert`: Revert modified files to the original state
+Commands and their specific switches are described bewow. Commands can be abbreviated to usually 2 letters.
 
-### Updating
-There is no special command to update the strings if they change on the server. Delete everything and download again.
+### Download a subproject
 
-### Other usage
-The download and upload commands can be used to manage local translation by means of desktop programs (potrans, transifex, and with some effort perhap also OmegaT).
+`etiptrans.py -p ui download ` (default language: `sk`)
 
-### Installation of dependencies
-The script was written and tested in Linux and python3. It requires several common modules (polib, requests, filecmp, json) and the `curl` programm. The script probably runs also in the Windows Subsystem for Linux (Windows 10) and maybe also in other environments. In Linux the modules can be installed using `pip`. 
+`etiptrans.py -p ui -l cz download ` (with specified language, in this case `cz`)
 
+`etiptrans.py -p ui -v download ` (with additional information)
 
+Downloads the `ui` sub project, creates directory `libo_ui-master/sk` with the po files.
+
+Dowloading of individual files may fail. Usually a failure is detected and download is restarted. Sometimes, however, downloading hangs. In that case abort the script (CRTL-C) and restart it. Already downloaded po files will be skipped.
+
+### Upload a subproject
+
+`etiptrans.py -p ui upload ` (default language: `sk`)
+
+`etiptrans.py -p ui -l cz upload ` (with specified language, in this case `cz`)
+
+`etiptrans.py -p ui -v upload ` (with additional information)
+
+### View current changes
+`etiptrans.py -p ui modified` lists modified files
+
+`etiptrans.py -p ui diff` lists differences, for example:
+
+```
+Differences in  libo_ui-master/sk/sc/messages.po:
+	_Show changes in spreadsheet```
+       < _Zobraziť zmeny v zošite
+	   > _Zobraziť zmeny v hárku
+```
+The line marked by `<` is the original, markred by `>` is the new version.
+
+### Cancel current changes
+`etiptrans.py -p ui reset`
+All changes will be cancelled to the download state.
+
+### Remove a subproject
+Use system tools:
+
+`rm -rf libo_ui`
+
+or
+
+`rm -rf libo_ui/sk`
+
+to remove only the `sk` language.
+
+### Normalize string ending characters
+Quite often a source string and translated string end with a different character. Weblate can detect some of these inconsistencies and lists them in the `Checks` column. They need to be fixed one-by-one, which is cumbersome.
+
+To fix the problem, run
+```
+etiptrans.py -p ui fixchar
+```
+The command also removes double spaces and removes spaces before the `,` and `.` interpunction.
+
+For example (run `etiptrans.py -p ui diff` to display changes):
+```
+'Line Spacing:'
+	< 'Riadkovanie'
+	> 'Riadkovanie:'
+```
+or
+```
+'Specifies additional sorting criteria. You can also combine sort keys.'
+	< 'Určuje ďalšie kritériá zoraďovania. Zoraďovacie kľúče môžete kombinovať .'
+	> 'Určuje ďalšie kritériá zoraďovania. Zoraďovacie kľúče môžete kombinovať.'
