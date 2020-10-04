@@ -627,9 +627,9 @@ trans_project=None
 
 pname = "libo_help-master"
 api_key = os.environ.get('WEBLATE_API_KEY')
+lang = os.environ.get('WEBLATE_API_LANG')
 wsite = f"https://translations.documentfoundation.org/api/"
 verbose = False
-lang="sk"
 csv_import=""
 remove_accelerators=False
 conflicts_only=False
@@ -659,6 +659,12 @@ def main():
         usage()
         sys.exit(1)
     token = 'Token '+api_key
+
+    if not lang:
+        print("\n%s error: no API key"%sys.argv[0])
+        print("  Set environment variable WEBLATE_API_LANG or use the -l switch.") 
+        usage()
+        sys.exit(1)
 
     if action == "do":  #download
         subproject_slugs = get_subproject_slugs(projects[trans_project])
