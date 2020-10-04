@@ -34,7 +34,10 @@ def usage():
     print("\tmodified\tList modified files")
     print("\tdifferences\tShow differences in modified files")
     print("\trevert\t\tRevert modified files to the original state")
-    print("\ttransfer\ttransfer existing translations of extended tooltips from the other project")
+    print("\ttransfer\ttransfer existing translations of extended tooltips from another project")
+    print("\t\t-n project        project to transfer translations from.")
+    print("\t\t                  If transferring between 'ui' projects, tranfers are only between messages with identical KeyId.")
+    print("\t\t                  If transferring between 'ui' and 'help' project, only tooltips are transferred.")
     print("\timport\t\timport translations from csv file (source<tab>target)")
     print("\t\t-c csv_file       csv file to import translations.")
     print("\t\t\t\t  Structure:")
@@ -52,9 +55,9 @@ def usage():
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, remove_accelerators,conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side
+    global wsite, api_key, trans_project, lang, verbose, csv_import, remove_accelerators,conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvafrtow:p:k:l:c:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvafrtow:p:k:l:c:n:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -73,6 +76,8 @@ def parsecmd():
             lang = a
         elif o in ("-c"):
             csv_import = a
+        elif o in ("-n"):
+            transfer_from = a
         elif o in ("-a"):
             remove_accelerators = True
         elif o in ("-f"):
@@ -275,6 +280,50 @@ def transfer_tooltips_ui_to_help():
         if changed:
             modified_files.add(hfile)
             po.save(hfile)
+
+def transfer_translations_ui_to_ui():
+    #load all messages, organize them by keyid
+    ui_files = load_file_list(projects['ui'], lang)
+    key_dir ={}
+    for ufile in ui_files:
+        po = polib.pofile(ufile)
+        for entry in po:
+            if entry.obsolete: continue
+            # keyid is stored in entry.comment
+            # store also msgid, to enable checking  
+            key_dir[entry.comment] = [entry.msgid, entry.msgstr] 
+    #load input catalogs
+    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    input_files = load_file_list(projects[trans_project], lang)
+    modified_files = set()
+    nmod=0
+    for ifile in input_files:
+        changed = False
+        po = polib.pofile(ifile)
+        for entry in po:
+            if entry.obsolete: 
+                continue
+            if entry.comment in key_dir:
+                if entry.msgid == key_dir[entry.comment][0]:
+                    if entry.msgstr != key_dir[entry.comment][1]:
+                        if entry.msgid != key_dir[entry.comment][0]:
+                            csvWriter.writerow(["Conflict", entry.msgid, key_dir[entry.comment][0]])
+                        csvWriter.writerow(["Replaced", entry.msgid+":", entry.msgstr+" >> "+ key_dir[entry.comment][1]])
+                        #ipdb.set_trace()
+                        entry.msgstr = key_dir[entry.comment][1]
+                        changed=True
+                        nmod += 1
+                else:
+                    csvWriter.writerow(["Conflict", entry.comment, entry.msgid, key_dir[entry.comment][0]])
+        if changed:
+            modified_files.add(ifile)
+            po.save(ifile)
+
+    if modified_files:
+        print ("Number of transferred changes: %s"%nmod)
+        print ("Modified files:")
+        for mf in modified_files:
+            print("  %s"%mf)
 
 # export unique messages without newlines
 # can be used for offline translation and subsequent import
@@ -587,6 +636,7 @@ conflicts_only=False
 conflicts_only_rev=False
 tooltips_only=False
 translated_other_side=False
+transfer_from=""
 
 #placeholder to mark line breaks in export
 line_break_placeholder="<ASDFGHJK>"
@@ -661,11 +711,17 @@ def main():
         else:
             print("No files to revert.")
 
-    elif action == "tr":    #transfer tooltips
-        if trans_project == "ui":
+    elif action == "tr":    #transfer translations
+        if trans_project == "ui" and transfer_from == "help":
             transfer_tooltips_help_to_ui()
-        else:
+        elif trans_project == "help" and transfer_from == "ui":
             transfer_tooltips_ui_to_help()
+        elif trans_project[:2] == "ui" and transfer_from == "ui":
+            transfer_translations_ui_to_ui()
+        else:
+            print("\n%s error: You can transfer translations only from 'help' to 'ui', from 'ui' to 'help' and from 'ui' to other 'ui' projects."%sys.argv[0])
+            print("\n%s error: You wanted to transfer translations from '%s' to '%s'."%(sys.argv[0], transfer_from, trans_project))
+            usage()
 
     elif action == "im":    #import translations from csv file (-c switch)
         if not csv_import:
