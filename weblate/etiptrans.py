@@ -28,7 +28,7 @@ def usage():
     print("\t-p {ui|help}      project")
     print("\t-w site           Weblate site {%s}"%wsite)
     print("\t-k key            Weblate account key {taken from the WEBLATE_API_KEY environment variable}")
-    print("\t-l lang_code      language code {%s}"%lang)
+    print("\t-l lang_code      language code {taken from the WEBLATE_API_LANG environment variable}")
     print("Commands (with their specific switches):")
     print("\tdownload\tDownload translation files for the project specidied by the -p switch")
     print("\tmodified\tList modified files")
