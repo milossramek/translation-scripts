@@ -18,15 +18,16 @@ from collections import defaultdict
 
 
 def usage():
-    global wsite, csv_import
+    global wsite, csv_import, projects
+    proj_abb = [k for k in projects.keys()]
     print()
     print("%s: Transfer extended tooltip string from the LibreOffice help translation files to UI files or vice versa"%sys.argv[0])
     print("Usage: ",sys.argv[0]+ " switches command")
     print("Switches:")
     print("\t-h                this usage")
-    print("\t-v                be verbose")
-    print("\t-p {ui|help}      project")
-    print("\t-w site           Weblate site {%s}"%wsite)
+    #print("\t-v                be verbose")
+    print("\t-w site           Weblate site URL {taken from the WEBLATE_API_SITE environment variable}")
+    print("\t-p project        Abbreviation of Weblate's subproject (slug) %s"%proj_abb)
     print("\t-k key            Weblate account key {taken from the WEBLATE_API_KEY environment variable}")
     print("\t-l lang_code      language code {taken from the WEBLATE_API_LANG environment variable}")
     print("Commands (with their specific switches):")
@@ -628,8 +629,9 @@ trans_project=None
 pname = "libo_help-master"
 api_key = os.environ.get('WEBLATE_API_KEY')
 lang = os.environ.get('WEBLATE_API_LANG')
-wsite = f"https://translations.documentfoundation.org/api/"
-verbose = False
+wsite = os.environ.get('WEBLATE_API_SITE')
+#wsite = f"https://translations.documentfoundation.org/api/"
+verbose = True  #set to True, otherwise needs a deeper analysis
 csv_import=""
 remove_accelerators=False
 conflicts_only=False
@@ -659,6 +661,12 @@ def main():
         usage()
         sys.exit(1)
     token = 'Token '+api_key
+
+    if not wsite:
+        print("\n%s error: no API key"%sys.argv[0])
+        print("  Set environment variable WEBLATE_API_SITE or use the -s switch.") 
+        usage()
+        sys.exit(1)
 
     if not lang:
         print("\n%s error: no API key"%sys.argv[0])
