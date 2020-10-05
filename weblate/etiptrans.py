@@ -46,9 +46,9 @@ def usage():
     print("\t\t\t\t   source<tab>current_target<tab>new_target    (replace only specific translations)")
     print('\texport\t\texport unique messages in csv format to stdout  as "source","target" with stripped newlines.')
     print("\t\t-a                remove accelerator characters _ and ~")
-    print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid")
-    print("\t\t-r                export only conflicting translations (reversed, more than one msgid for one msgstr")
-    print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui")
+    print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid)")
+    print("\t\t-r                export only conflicting translations (reversed, more than one msgid for one msgstr)")
+    print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
     print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
     print("\tfixchar\t\tfix trailing characters and extra spaces")
     print("\tupload\t\tupload modified files to server")
@@ -376,7 +376,7 @@ def export_conflicting_messages_to_csv(project):
             if tooltips_only and not ("<ahelp" in entry.msgid or "extended" in entry.msgctxt): continue
 
             if trans_project == 'ui':
-                #remove newlines, starting and ending spaces
+                #remove newlines
                 eid = entry.msgid.replace("\n",line_break_placeholder)
                 estr = entry.msgstr.replace("\n",line_break_placeholder)
             else: #help
