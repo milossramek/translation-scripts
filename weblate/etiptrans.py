@@ -15,6 +15,7 @@ import ipdb
 import json
 import polib
 from collections import defaultdict
+import numpy as np
 
 
 def usage():
@@ -255,7 +256,7 @@ def transfer_tooltips_ui_to_help():
                 pass
     #load help catalogs and find eventually translated nessages in ahelp_dir
     #ipdb.set_trace()
-    csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     help_files = load_file_list(projects['help'], lang)
     modified_files = set()
     for hfile in help_files:
@@ -326,17 +327,29 @@ def transfer_translations_ui_to_ui():
         for mf in modified_files:
             print("  %s"%mf)
 
+# key_id is in one of the rows of poentry.comment (usually the first)
+def get_key_id_code(poentry):
+    key_id = poentry.comment.split("\n")
+    if len(key_id) == 1:
+        key_id=key_id[0]
+    else:
+        lenghts = np.nonzero([len(k)==5 for k in key_id])
+        key_id=key_id[lenghts[0][0]]
+    return key_id
+
 # export unique messages without newlines
 # can be used for offline translation and subsequent import
 # can be used as a glossary in external translation tools as OmegaT
 def export_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
-    csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
     mset=set()
     for file in files:
         po = polib.pofile(file)
         for entry in po:
             if entry.obsolete: continue
+            key_id = get_key_id_code(entry)
 
             if tooltips_only and project == "help":
                 if not "<ahelp" in entry.msgid: continue
@@ -357,13 +370,14 @@ def export_messages_to_csv(project):
                 eid = eid.replace("_","").replace("~","")
                 estr = estr.replace("_","").replace("~","")
             if not eid+estr in mset:
-                csvWriter.writerow([eid,estr])
+                csvWriter.writerow([file,key_id,eid,estr])
                 mset.add(eid+estr)
 
 # export conflicting translations
 def export_conflicting_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
-    csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
     # dictionary with potentially conflicting entries (if len>1)
     conf_dict = defaultdict(list)
     # a set to detect repetitions
@@ -371,6 +385,7 @@ def export_conflicting_messages_to_csv(project):
     for fname in files:
         po = polib.pofile(fname)
         for entry in po:
+            key_id = get_key_id_code(entry)
 
             if entry.obsolete: continue
             if tooltips_only and not ("<ahelp" in entry.msgid or "extended" in entry.msgctxt): continue
@@ -407,15 +422,15 @@ def export_conflicting_messages_to_csv(project):
             #add to the dictionary
             if eid+estr.lower() not in repetitions: #ignore case in estr when detecting conflicts
                 repetitions.add(eid+estr.lower())
-                if not eid in conf_dict:
-                    conf_dict[eid].append(estr)
-                elif estr not in conf_dict[eid]:
-                    conf_dict[eid].append(estr)
+                conf_dict[eid].append([fname, key_id, estr])
     # export only those with more than one entry
     for eid in conf_dict:
         if len(conf_dict[eid]) > 1:
-            for estr in conf_dict[eid]:
-                csvWriter.writerow([eid,estr])
+            for val in conf_dict[eid]:
+                if conflicts_only_rev:
+                    csvWriter.writerow([val[0], val[1], val[2], eid])
+                else:
+                    csvWriter.writerow([val[0], val[1], eid, val[2]])
 
 #export translated tooltips, if they are translated on the 'other' side
 #useful if tooltips on the 'other' side (help) were of poor quality, but still transferred to ui
@@ -434,14 +449,15 @@ def export_etips_trans_help():
                     ahelp_dir[ahelp_id] = [ahelp_str[0], hfile]
                 pass
     #load ui catalogs and find if they have translated counterpart in help
-    csvWriter = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
     ui_files = load_file_list(projects['ui'], lang)
     for uifile in ui_files:
         po = polib.pofile(uifile)
         for entry in po:
             if not "extended" in entry.msgctxt: continue
             if entry.msgid in ahelp_dir and entry.msgstr:
-                csvWriter.writerow([entry.msgid, entry.msgstr, uifile])
+                csvWriter.writerow([uifile, entry.comment, entry.msgid, entry.msgstr])
 
 def strip_interpuct_end(txt, inp):
     while txt[-1] in inp and len(txt) > 1:
