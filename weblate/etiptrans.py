@@ -563,7 +563,7 @@ def import_translations(project):
                     else:
                         print("  Replaced translation: %s"%(entry.msgid))
                     #ipdb.set_trace()
-                    entry.msgstr = import_dir[entry.msgid][0]
+                    entry.msgstr = import_dir[entry.msgid][0].replace(line_break_placeholder,"\n")
                     changed = True
                     ntrans += 1
             # 3 columns, replace matching translation
@@ -572,7 +572,7 @@ def import_translations(project):
                     if entry.msgstr == import_dir[entry.msgid][0]:
                         print("  Replaced translation: %s"%(entry.msgid))
                         #ipdb.set_trace()
-                        entry.msgstr = import_dir[entry.msgid][1]
+                        entry.msgstr = import_dir[entry.msgid][1].replace(line_break_placeholder,"\n")
                         changed = True
                         ntrans += 1
         if changed:
@@ -613,7 +613,7 @@ def transfer_tooltips_help_to_ui():
                 #ipdb.set_trace()
                 if ahelp_dir[entry.msgid][0]:
                     #ipdb.set_trace()
-                    entry.msgstr = ahelp_dir[entry.msgid][0]
+                    entry.msgstr = import_dir[entry.msgid][0].replace(line_break_placeholder,"\n")
                     print("  Translated: %s"%(entry.msgid))
                     changed = True
                 else:
@@ -657,7 +657,7 @@ translated_other_side=False
 transfer_from=""
 
 #placeholder to mark line breaks in export
-line_break_placeholder="<ASDFGHJK>"
+line_break_placeholder="<LINE_BREAK>"
 
 def main():
     global token
