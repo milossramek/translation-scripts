@@ -42,9 +42,7 @@ def usage():
     print("\t\t                  If transferring between 'ui' and 'help' project, only tooltips are transferred.")
     print("\timport\t\timport translations from csv file (source<tab>target)")
     print("\t\t-c csv_file       csv file to import translations.")
-    print("\t\t\t\t  Structure:")
-    print("\t\t\t\t   source<tab>target    (replace all)")
-    print("\t\t\t\t   source<tab>current_target<tab>new_target    (replace only specific translations)")
+    print("\t\t\t\t  Structure: The same as exported")
     print('\texport\t\texport unique messages in csv format to stdout  as "source","target" with stripped newlines.')
     print("\t\t-a                remove accelerator characters _ and ~")
     print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid)")
@@ -63,7 +61,7 @@ def parsecmd():
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
-        usage(desc)
+        usage()
         sys.exit(2)
     for o, a in opts:
         if o in ("-w"):
@@ -123,7 +121,7 @@ def request_get(url):
         else:
             response_dir=json.loads(response)
             if 'detail' in response_dir:
-                print(f"request_get: Commad failed ({response_dir['detail']})")
+                print(f"request_get: Command failed ({response_dir['detail']})")
             else:
                 return response_dir
     sys.exit(1)
@@ -164,7 +162,7 @@ def upload_file(fpath, furl):
     else:
         response_dir=json.loads(response)
         if 'detail' in response_dir:
-            print(f"Upload_file: Commad failed ({response_dir['detail']})")
+            print(f"Upload_file: Command failed ({response_dir['detail']})")
             sys.exit(1)
         else:
             if verbose: print("  Result: %s"%response)
@@ -254,7 +252,7 @@ def transfer_tooltips_ui_to_help():
                 else:
                     ahelp_dir[ahelp_id] = ["", ufile]
                 pass
-    #load help catalogs and find eventually translated nessages in ahelp_dir
+    #load help catalogs and find eventually translated messages in ahelp_dir
     #ipdb.set_trace()
     csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     help_files = load_file_list(projects['help'], lang)
@@ -529,49 +527,45 @@ def fix_trailing_characters(project):
 def import_translations(project):
     with open(csv_import, 'rt', encoding='utf-8') as ifile:
         reader = csv.reader(ifile, delimiter='\t', quotechar='"',quoting=csv.QUOTE_MINIMAL)
-        import_dir ={}
+        import_dir = None
         ncols=0
+        #Expected header
+        hdr=["File name","KeyID","Source","Target"]
         for row in reader:
-            if ncols == 0:
-                ncols = len(row)
-            if len(row) != ncols:
+            if import_dir is None: 
+                if row[1] != hdr[1]:
+                    print(f'\n%s import error: incorrect table header, expected "%s,%s,%s,%s".'%tuple([sys.argv[0]]+hdr))
+                    sys.exit(1)
+                else:
+                    import_dir = {}
+                    continue
+            if len(row) != 4:
                 print(f"\n%s import error: inconsistent number of columns at %s."%(sys.argv[0], row))
                 sys.exit(1)
-            import_dir[row[0]] = row[1:]
+            import_dir[row[1]] = row[2:]
+    ipdb.set_trace()
 
-    #load ui catalogs and find eventually translated messages in import_dir
-    ui_files = load_file_list(projects[project], lang)
+    #load ui catalogs and replace msgstr of those with identical keyid
+    pofiles = load_file_list(projects[project], lang)
     modified_files = set()
     ntrans=0
-    for uifile in ui_files:
+    for pofile in pofiles:
         changed = False
-        po = polib.pofile(uifile)
+        po = polib.pofile(pofile)   #load messages from the file
         for entry in po:
             if entry.obsolete: continue
-            #if entry.msgid in import_dir and not entry.msgstr:
-            # 2 columns, just replace, useful if no translation exists
-            if ncols == 2:
-                if entry.msgid in import_dir:
-                    if import_dir[entry.msgid] and not entry.msgstr:
-                        print("  New translation: %s"%(entry.msgid))
-                    else:
-                        print("  Replaced translation: %s"%(entry.msgid))
-                    #ipdb.set_trace()
-                    entry.msgstr = import_dir[entry.msgid][0].replace(line_break_placeholder,"\n")
-                    changed = True
-                    ntrans += 1
-            # 3 columns, replace matching translation
-            else :
-                if entry.msgid in import_dir:
-                    if entry.msgstr == import_dir[entry.msgid][0]:
-                        print("  Replaced translation: %s"%(entry.msgid))
-                        #ipdb.set_trace()
-                        entry.msgstr = import_dir[entry.msgid][1].replace(line_break_placeholder,"\n")
-                        changed = True
-                        ntrans += 1
+            keyid = get_key_id_code(entry)
+            if not keyid in import_dir: continue
+            if entry.msgstr:
+                print("  Replaced translation: %s"%(entry.msgid))
+            else:
+                print("  New translation: %s"%(entry.msgid))
+            entry.msgstr = import_dir[keyid][1].replace(line_break_placeholder,"\n")
+            changed = True
+            ntrans += 1
         if changed:
-            modified_files.add(uifile)
-            po.save(uifile)
+            modified_files.add(pofile)
+            po.save(pofile)
 
     if modified_files:
         print ("Number of imported translations: %s"%ntrans)
@@ -595,7 +589,7 @@ def transfer_tooltips_help_to_ui():
                 else:
                     ahelp_dir[ahelp_id] = ["", hfile]
                 pass
-    #load ui catalogs and find eventually translated nessages in ahelp_dir
+    #load ui catalogs and find eventually translated messages in ahelp_dir
     ui_files = load_file_list(projects['ui'], lang)
     modified_files = set()
     for uifile in ui_files:
