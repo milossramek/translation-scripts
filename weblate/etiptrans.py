@@ -36,28 +36,29 @@ def usage():
     print("\tmodified\tList modified files")
     print("\tdifferences\tShow differences in modified files")
     print("\trevert\t\tRevert modified files to the original state")
+    print("\tfixchar\t\tfix trailing characters and extra spaces")
+    print("\tupload\t\tupload modified files to server")
     print("\ttransfer\ttransfer existing translations of extended tooltips from another project")
     print("\t\t-n project        project to transfer translations from.")
     print("\t\t                  If transferring between 'ui' projects, tranfers are only between messages with identical KeyId.")
     print("\t\t                  If transferring between 'ui' and 'help' project, only tooltips are transferred.")
-    print("\timport\t\timport translations from csv file (source<tab>target)")
-    print("\t\t-c csv_file       csv file to import translations.")
-    print("\t\t\t\t  Structure: The same as exported")
-    print('\texport\t\texport unique messages in csv format to stdout  as "source","target" with stripped newlines.')
-    print("\t\t-a                remove accelerator characters _ and ~")
+    print('\tglossary\texport unique messages in csv format to stdout as "source","target". May be used as glossary in OmegaT and maybe elsewhere ')
+    print("\t\t                  accelerator characters _ and ~ are removed and newlines replaced by a placeholder")
+    print('\texport\t\texport messages in csv format to stdout with newlines replaced by placeholders.')
     print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid)")
     print("\t\t-r                export only conflicting translations (reversed, more than one msgid for one msgstr)")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
-    print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
-    print("\tfixchar\t\tfix trailing characters and extra spaces")
-    print("\tupload\t\tupload modified files to server")
+    #print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
+    print("\timport\t\timport translations from a 4 column csv file")
+    print("\t\t-c csv_file       csv file to import translations.")
+    print("\t\t\t\t  Structure: The same as exported")
     print("\thelp\t\tThis help")
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, remove_accelerators,conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvafrtow:p:k:l:c:n:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtow:p:k:l:c:n:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -78,8 +79,6 @@ def parsecmd():
             csv_import = a
         elif o in ("-n"):
             transfer_from = a
-        elif o in ("-a"):
-            remove_accelerators = True
         elif o in ("-f"):
             conflicts_only = True
         elif o in ("-r"):
@@ -336,18 +335,38 @@ def get_key_id_code(poentry):
     return key_id
 
 # export unique messages without newlines
+# can be used as a glossary in external translation tools as OmegaT
+def export_glossary(project):
+    files = load_file_list(projects[project], lang)
+    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    mset=set()
+    for file in files:
+        po = polib.pofile(file)
+        for entry in po:
+            if entry.obsolete: continue
+
+            eid = entry.msgid
+            estr = entry.msgstr
+
+            eid = eid.replace("\n",line_break_placeholder)
+            estr = estr.replace("\n",line_break_placeholder)
+            eid = eid.replace("_","").replace("~","")
+            estr = estr.replace("_","").replace("~","")
+            if not eid+estr in mset:
+                csvWriter.writerow([eid,estr])
+                mset.add(eid+estr)
+
+# export unique messages without newlines
 # can be used for offline translation and subsequent import
 # can be used as a glossary in external translation tools as OmegaT
 def export_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
     csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
-    mset=set()
     for file in files:
         po = polib.pofile(file)
         for entry in po:
             if entry.obsolete: continue
-            key_id = get_key_id_code(entry)
 
             if tooltips_only and project == "help":
                 if not "<ahelp" in entry.msgid: continue
@@ -355,15 +374,13 @@ def export_messages_to_csv(project):
                 if not "extended" in entry.msgctxt: continue
             eid = entry.msgid
             estr = entry.msgstr
+            key_id = get_key_id_code(entry)
 
             eid = eid.replace("\n",line_break_placeholder)
             estr = estr.replace("\n",line_break_placeholder)
-            if remove_accelerators:
-                eid = eid.replace("_","").replace("~","")
-                estr = estr.replace("_","").replace("~","")
-            if not eid+estr in mset:
-                csvWriter.writerow([file,key_id,eid,estr])
-                mset.add(eid+estr)
+            eid = eid.replace("_","").replace("~","")
+            estr = estr.replace("_","").replace("~","")
+            csvWriter.writerow([file,key_id,eid,estr])
 
 # export conflicting translations
 def export_conflicting_messages_to_csv(project):
@@ -407,10 +424,6 @@ def export_conflicting_messages_to_csv(project):
                 estr=aux
                 #ipdb.set_trace()
                 pass
-            #remove accelerators
-            if remove_accelerators:
-                eid = eid.replace("_","").replace("~","")
-                estr = estr.replace("_","").replace("~","")
             #add to the dictionary
             if eid+estr.lower() not in repetitions: #ignore case in estr when detecting conflicts
                 repetitions.add(eid+estr.lower())
@@ -637,7 +650,6 @@ wsite = os.environ.get('WEBLATE_API_SITE')
 #wsite = f"https://translations.documentfoundation.org/api/"
 verbose = True  #set to True, otherwise needs a deeper analysis
 csv_import=""
-remove_accelerators=False
 conflicts_only=False
 conflicts_only_rev=False
 tooltips_only=False
@@ -759,6 +771,9 @@ def main():
             #rewrite the old dot file
             shutil.copyfile(fpath, get_dot_name(fpath))
         pass
+
+    elif action == "gl":    #glossary
+        export_glossary(trans_project)
 
     elif action == "ex":    #export
         if conflicts_only or conflicts_only_rev:
