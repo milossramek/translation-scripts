@@ -353,16 +353,10 @@ def export_messages_to_csv(project):
 
             if tooltips_only and project == "help":
                 if not "<ahelp" in entry.msgid: continue
-                eid=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgid)[0]
-                estr=re.findall(r"<ahelp[^>]*>(.*)</ahelp>",entry.msgstr)
-                estr = estr[0] if estr else ""
             elif tooltips_only and project == "ui":
                 if not "extended" in entry.msgctxt: continue
-                eid = entry.msgid
-                estr = entry.msgstr
-            else:
-                eid = entry.msgid
-                estr = entry.msgstr
+            eid = entry.msgid
+            estr = entry.msgstr
 
             eid = eid.replace("\n",line_break_placeholder)
             estr = estr.replace("\n",line_break_placeholder)
