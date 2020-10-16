@@ -49,9 +49,9 @@ def usage():
     print("\t\t-r                export only conflicting translations (reversed, more than one msgid for one msgstr)")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
     #print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
-    print("\timport\t\timport translations from a 4 column csv file")
+    print("\timport\t\timport translations from a csv file")
     print("\t\t-c csv_file       csv file to import translations.")
-    print("\t\t\t\t  Structure: The same as exported")
+    print("\t\t\t\t  Structure: 4 columns, the same content as when exported")
     print("\thelp\t\tThis help")
 
 
@@ -535,7 +535,55 @@ def fix_trailing_characters(project):
         for mf in modified_files:
             print("  %s"%mf)
 
+#check correctness
+#if tags and interpunction is removed, number of words must be the same
+def check_removed_spaces(intext, text):
+    icnt = re.sub(r"<[^>]*>","", intext)
+    icnt = re.sub(r"[,.$%()]","", icnt)
+    icnt = re.sub(r"  *"," ", icnt)
+    ocnt = re.sub(r"<[^>]*>","", text)
+    ocnt = re.sub(r"[,.$%()]","", ocnt)
+    ocnt = re.sub(r"  *"," ", ocnt)
+    if icnt[0] == " ": icnt=icnt[1:]
+    if icnt[-1] == " ": icnt=icnt[:-1]
+    if ocnt[0] == " ": ocnt=ocnt[1:]
+    if ocnt[-1] == " ": ocnt=ocnt[:-1]
+    icnts = icnt.split(" ")
+    ocnts = ocnt.split(" ")
+    if len(icnts) != len(ocnts):
+        print(icnts)
+        print(ocnts)
+        print(f'\n%s import error: correction of modifications potentially caused by a translating service failed')
+        print('\tOriginal: %s'%intext)
+        print('\tCorrected: %s'%text)
+        print('\tDelete this row from the csv file, reset changes and import again')
+        sys.exit(1)
 
+# If the Google translation service was used to translate strings, it is necessary to fix certain errors 
+def remove_extra_spaces(intext):
+    #$ [officename]
+    text = intext.replace("$ [office","$[office")
+    text = text.replace("% PRODUCTNAME"," %PRODUCTNAME")
+    #< / switchinline>
+    text = text.replace("< / ","</")
+    #function
+    text = text.replace(" ()","()")
+    #leading space
+    text = re.sub(r"^ *","",text)
+    #trailing space
+    text = re.sub(r" *$","",text)
+    #spaces after opening tag
+    tag_first="evalsbicd"   #first letters of tags present in help
+    text = re.sub(r"(<[%s][^>]*>) "%tag_first, r"\1",text)
+    #spaces before closing tag
+    text = re.sub(r" (</[%s][^>]*>)"%tag_first, r"\1",text)
+    # fix stuff inside tags
+    tags=re.findall(r"<[%s][^>]*>"%tag_first,text)
+    for tag in tags:
+        text=text.replace(tag,tag.replace(" = ","=").replace(" / ","/"))
+
+    check_removed_spaces(intext, text)
+    return text
 
 def import_translations(project):
     with open(csv_import, 'rt', encoding='utf-8') as ifile:
@@ -556,7 +604,6 @@ def import_translations(project):
                 print(f"\n%s import error: inconsistent number of columns at %s."%(sys.argv[0], row))
                 sys.exit(1)
             import_dir[row[1]] = row[2:]
-    ipdb.set_trace()
 
     #load ui catalogs and replace msgstr of those with identical keyid
     pofiles = load_file_list(projects[project], lang)
@@ -573,7 +620,7 @@ def import_translations(project):
                 print("  Replaced translation: %s"%(entry.msgid))
             else:
                 print("  New translation: %s"%(entry.msgid))
-            entry.msgstr = import_dir[keyid][1].replace(line_break_placeholder,"\n")
+            entry.msgstr = remove_extra_spaces(import_dir[keyid][1]).replace(line_break_placeholder,"\n")
             changed = True
             ntrans += 1
         if changed:

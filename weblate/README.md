@@ -134,6 +134,8 @@ A csv file with 4 tab separated columns is exported:
 libo_ui-master/sk/avmedia/messages.po	yTBHR	200%	200 %
 ```
 
+The newline characters are replaced by a placeholder <LINE_BREAK> to enable processing with programs which do not understand structure of csv files. These are reverted to the newline character on import.
+
 To export translations run
 ```
 etiptrans -p ui {switches} export > output.csv
@@ -144,33 +146,57 @@ Allowed switches are:
 
 `-r`: export only conflicting translations (reversed, two or several different source strings for one translation string)
 
-`-t`: export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui, without the <ahelp> tags)
+`-t`: export only extended tooltips (they contain the tag <ahelp> in help and word 'extended' in entry.msgctxt in ui). May be combined with the -f and -r switches.
 
+If no switches are used, all messages are exported.
 
-#### Basic Export
-Use the following command:
-```
-etiptrans -p ui export
-```
-or
-```
-etiptrans -p ui -a export
-```
-The second version removes accelerators `–` and `~`
-
-### Find and correct typos
+### Usage scenarios
+#### Find and correct typos
 Weblate does not have a tool to find typos. The proposed procedure consists of several steps: export strings, find typos by a spell checker and correct the typos by the `sed` editor.
 1. Export all strings without accelerators
 
 `etiptrans.py -p sk -a export >en_sk.csv`
 
-Open the `en_sk.csv` file in LibreOfficedelete the column with English strings and save as `sk.csv`
-1. Find typos
-Run this horrible script:
+Open the `en_sk.csv` file in LibreOffice, delete columns 1 - 3 (File name, Key Id, English strings) and save as `sk.csv`
+##### 1. Find typos
+Run this script:
 ```
 cat sk.csv |tr " " "\n" | tr "/-" "\n"| tr "]" "." |sed -e "s/[.,\"()<*>=:;%?&'{}[]//g"|sed -e "s/[0-9\!\^„“#]//g"|sed -e "s/.*[a-Z][A-Z].*//"|sort|uniq|aspell -l sk list
 ```
-The scripts breaks lines in single words (`tr " " "\n" | tr "/-" "\n"`), removes special characters (`tr "]" "." |sed -e "s/[.,\"()<*>=:;%?&'{}[]//g"|sed -e "s/[0-9\!\^„“#]//g"|sed -e "s/.*[a-Z][A-Z].*//">typos.txt`), finds unique words (`sort|uniq`) and finally uses the `aspell` spellchecker to find misspelled words.
+The scripts breaks lines in single words (`tr " " "\n" | tr "/-" "\n"`), removes special characters (`tr "]" "." |sed -e "s/[.,\"()<*>=:;%?&'{}[]//g"|sed -e "s/[0-9\!\^„“#]//g"|sed -e "s/.*[a-Z][A-Z].*//">typos.txt`), finds unique words (`sort|uniq`) and finally uses the `aspell` spellchecker to find misspelled words. The output has one misspelled word on each line. Check it and eventually remove correct words.
 
-The script was assembled in a trial-and-error way, maybe that there is a much nicer way, hoh to reach the same goal.
-2. Correct typos
+The script was assembled in a trial-and-error way, maybe that there is a much nicer way, how to reach the same goal.
+
+##### 2. Correct typos
+
+1. Find the file with a typo (`typoo` below), for example by the command
+```
+grep typoo `find libo_ui-master -name [^.]\*.po`
+```
+(`[^.]` ensures that the backup files are note searched). Then open the file in a text editor and fix the problem.
+
+1. Change all typos at once using the `sed` editor. For that, from the list of typos create a file, e. g.,  `fixerror.sed` with a sed command for each typo in the form
+```
+s/typoo/typo/
+```
+and run
+```
+for i in `find libo_ui-master -name [^.]\*.po`; do sed -i -f fixerrors.sed $i; done`
+```
+(if using the `bash` shell)
+
+##### 3. Check the changes
+Check the changes by means of the `etiptrans.py -p ui diff` command. If something went wrong revert the changes (`etiptrans.pu -p ui re`), modify the sed file and run `sed` again.
+
+##### 4. Upload the modifications
+Upload the modifications by `etiptrans.py -p ui up` to the weblate server.
+
+### Translate strings using Google translate
+Translation services as Google translate make sense only for longer text strings composed of sentences. GUI translation should be done directly in Weblate.
+#### 1. Export the desired substrings
+Use the `export` command (eventually with one of its switches). If necessary, sort the csv file according to text length and delete rows short text.
+#### 2. Use the translation service
+Using LibreOffice copy some rows in the Source column and translate them using https://translate.google.com/. Copy the translation to the Target column.
+#### 3. Check and modify the translation
+#### 4. Import the translation
+Import the translated csv file using `etiptrans.py -p help -c infile.csv im`. The Google translate service adds a large amount of spaces (around tags, operators, the $ and % characters which a part of variables). These are removed on import. This removal is probably not perfect, but if it happens to merge words, the import process is aborted and an error message with instructions is displayed.
