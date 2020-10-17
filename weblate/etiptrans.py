@@ -47,7 +47,9 @@ def usage():
     print('\texport\t\texport messages in csv format to stdout with newlines replaced by placeholders.')
     print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid)")
     print("\t\t-r                export only conflicting translations (reversed, more than one msgid for one msgstr)")
+    print("\t\t-g                export translations with inconsistent tags")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
+    print("\t\t-a                do not abbreviate tags")
     #print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
     print("\timport\t\timport translations from a csv file")
     print("\t\t-c csv_file       csv file to import translations.")
@@ -56,9 +58,9 @@ def usage():
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtow:p:k:l:c:n:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaw:p:k:l:c:n:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -79,12 +81,16 @@ def parsecmd():
             csv_import = a
         elif o in ("-n"):
             transfer_from = a
+        elif o in ("-a"):
+            no_abbreviation = True
         elif o in ("-f"):
             conflicts_only = True
         elif o in ("-r"):
             conflicts_only_rev = True
         elif o in ("-t"):
             tooltips_only = True
+        elif o in ("-g"):
+            inconsistent_tags = True
         elif o in ("-o"):
             translated_other_side = True
         elif o in ("-h"):
@@ -356,6 +362,100 @@ def export_glossary(project):
                 csvWriter.writerow([eid,estr])
                 mset.add(eid+estr)
 
+# compare tag lists, ignore the name attribute
+def tag_equivalence(itags, stags):
+    if len(itags) != len(stags): return False
+    itags=sorted([re.sub(r' name="[^"]*"','',t) for t in itags])
+    stags=sorted([re.sub(r' name="[^"]*"','',t) for t in stags])
+    if itags != stags:
+        #ipdb.set_trace()
+        return False
+    return True
+
+# export unique messages without newlines
+# can be used for offline translation and subsequent import
+# can be used as a glossary in external translation tools as OmegaT
+def export_inconsistent_tags(project):
+    files = load_file_list(projects[project], lang)
+    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
+    for file in files:
+        po = polib.pofile(file)
+        for entry in po:
+            if entry.obsolete: continue
+            if not entry.translated(): continue
+
+            #extract tags
+            itags=re.findall(r"<[^/][^>]*>",entry.msgid)
+            stags=re.findall(r"<[^/][^>]*>",entry.msgstr)
+            if not itags: continue
+
+            if not tag_equivalence(itags, stags):
+                key_id = get_key_id_code(entry)
+                eid = entry.msgid.replace("\n",line_break_placeholder)
+                estr = entry.msgstr.replace("\n",line_break_placeholder)
+                #ipdb.set_trace()
+                csvWriter.writerow([file,key_id,abbreviate_tags(eid)[0],abbreviate_tags(estr)[0]])
+                #test
+                abb, adir = abbreviate_tags(eid)
+                if adir:
+                    eeid = revert_abbreviations(abb,adir)
+                    if(eid != eeid):
+                        ipdb.set_trace()
+                        pass
+
+
+#abbreviate tags
+#Replace
+#<ahelp hid=".">The <emph>Format</emph> menu contains commands for formatting selected cells, <link href="text/shared/00/00000005.xhp#objekt" name="objects">objects</link>, and cell contents in your document.</ahelp>'
+#by
+#'<AH0>The <EM0>Format</EM> menu contains commands for formatting selected cells, <LI0>objects</LI>, and cell contents in your document.</AH>'
+def abbreviate_tags(imsg):
+    if no_abbreviation: return imsg, None
+    # directory of replacements, to be used in removal of abbreviations
+    adir ={}
+    msg=imsg
+    for tag in abb_tags:
+        ftags=re.findall(r"<%s[^>]*>"%tag,msg)
+        for n in range(len(ftags)):
+            abb="%s%d"%(tag[:2].upper(),n)
+            msg = msg.replace(ftags[n],"<%s>"%abb,1)
+            adir["<%s>"%abb]=ftags[n]
+        msg = msg.replace("</%s>"%tag, "</%s>"%tag[:2].upper())
+    #ipdb.set_trace()
+    return msg, adir
+
+#revert abbreviations in msgstr
+# adir: abbreviation generated from the corresponding msgid 
+def revert_abbreviations(abb_str, adir):
+    msgstr = abb_str
+    nrev=0  #number of reverted tags
+    for a in adir:
+        aux = msgstr.replace(a,adir[a])
+        if aux != msgstr: nrev += 1
+        msgstr = aux
+    if nrev != len(adir):
+        print(f'  Import error: abbreviation reverting failed, not all abbreviations were found.')
+        print(f'\tThe msgid and msgstr parts probably do not match')
+        print('\tInput: %s'%abb_str)
+        print('\tFailed: %s'%msgstr)
+        print('\tDelete this row from the csv file, reset changes and import again')
+        sys.exit(1)
+    for tag in abb_tags:
+        msgstr = msgstr.replace("</%s>"%tag[:2].upper(),"</%s>"%tag) 
+    #ipdb.set_trace()
+    # check if abbreviations still exist
+    for tag in abb_tags:
+        if "<%s"%tag[:2].upper() in msgstr:
+            print(f'  Import error: abbreviation reverting failed, not all abbreviations were removed.')
+            print(f'\tThe msgid and msgstr parts probably do not match')
+            print('\tInput: %s'%abb_str)
+            print('\tFailed: %s'%msgstr)
+            print('\tDelete this row from the csv file, reset changes and import again')
+            sys.exit(1)
+
+    return msgstr
+
 # export unique messages without newlines
 # can be used for offline translation and subsequent import
 # can be used as a glossary in external translation tools as OmegaT
@@ -378,9 +478,7 @@ def export_messages_to_csv(project):
 
             eid = eid.replace("\n",line_break_placeholder)
             estr = estr.replace("\n",line_break_placeholder)
-            eid = eid.replace("_","").replace("~","")
-            estr = estr.replace("_","").replace("~","")
-            csvWriter.writerow([file,key_id,eid,estr])
+            csvWriter.writerow([file,key_id,abbreviate_tags(eid)[0],abbreviate_tags(estr)[0]])
 
 # export conflicting translations
 def export_conflicting_messages_to_csv(project):
@@ -433,9 +531,10 @@ def export_conflicting_messages_to_csv(project):
         if len(conf_dict[eid]) > 1:
             for val in conf_dict[eid]:
                 if conflicts_only_rev:
-                    csvWriter.writerow([val[0], val[1], val[2], eid])
+                    csvWriter.writerow([val[0], val[1], abbreviate_tags(val[2])[0], abbreviate_tags(eid)[0]])
                 else:
-                    csvWriter.writerow([val[0], val[1], eid, val[2]])
+                    csvWriter.writerow([val[0], val[1], abbreviate_tags(eid)[0], abbreviate_tags(val[2])[0]])
+                #csvWriter.writerow([file,key_id,abbreviate_tags(eid)[0],abbreviate_tags(estr)[0]])
 
 #export translated tooltips, if they are translated on the 'other' side
 #useful if tooltips on the 'other' side (help) were of poor quality, but still transferred to ui
@@ -616,13 +715,17 @@ def import_translations(project):
             if entry.obsolete: continue
             keyid = get_key_id_code(entry)
             if not keyid in import_dir: continue
+            #remove abbreviations in translated strings. If there are none, nothing happens
+            aux, adir = abbreviate_tags(entry.msgid)
+            #ipdb.set_trace()
+            msgstr = revert_abbreviations(import_dir[keyid][1],adir)
+            entry.msgstr = remove_extra_spaces(msgstr).replace(line_break_placeholder,"\n")
+            changed = True
+            ntrans += 1
             if entry.msgstr:
                 print("  Replaced translation: %s"%(entry.msgid))
             else:
                 print("  New translation: %s"%(entry.msgid))
-            entry.msgstr = remove_extra_spaces(import_dir[keyid][1]).replace(line_break_placeholder,"\n")
-            changed = True
-            ntrans += 1
         if changed:
             modified_files.add(pofile)
             po.save(pofile)
@@ -690,6 +793,26 @@ projects = {
         }
 trans_project=None
 
+#list of used tags used in help
+abb_tags = [
+        "ahelp",
+        "bookmark_value",
+        "caseinline",
+        "embedvar",
+        "font",
+        "item",
+        "link",
+        "switchinline",
+        "variable",
+        "defaultinline", 
+        #"emph", 
+        "literal", 
+        "image", 
+        "alt", 
+        "menuitem"
+        ]
+    
+
 pname = "libo_help-master"
 api_key = os.environ.get('WEBLATE_API_KEY')
 lang = os.environ.get('WEBLATE_API_LANG')
@@ -701,6 +824,8 @@ conflicts_only=False
 conflicts_only_rev=False
 tooltips_only=False
 translated_other_side=False
+inconsistent_tags=False
+no_abbreviation=False
 transfer_from=""
 
 #placeholder to mark line breaks in export
@@ -825,6 +950,8 @@ def main():
     elif action == "ex":    #export
         if conflicts_only or conflicts_only_rev:
             export_conflicting_messages_to_csv(trans_project)
+        elif inconsistent_tags:
+            export_inconsistent_tags(trans_project)
         elif translated_other_side:
             if trans_project == "ui":
                 export_etips_trans_help()
