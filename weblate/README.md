@@ -140,15 +140,33 @@ To export translations run
 ```
 etiptrans -p ui {switches} export > output.csv
 ```
-Allowed switches are:
+Possible export types are specified by switches:
 
 `-f`: export only conflicting translations (different translations for one source string)
 
 `-r`: export only conflicting translations (reversed, two or several different source strings for one translation string)
 
+`-g`: export translations with inconsistent tags
+
 `-t`: export only extended tooltips (they contain the tag <ahelp> in help and word 'extended' in entry.msgctxt in ui). May be combined with the -f and -r switches.
 
-If no switches are used, all messages are exported.
+If none of these switches is used, all messages are exported.
+
+There are two modifier switches, which influence the output:
+
+`-a`: Do not abbreviate tags. Normally, tags are abbreviated, which simplifies translation. Makes sense in Help, where tags are often very complex. Example:
+
+```
+Your text was corrected by <link href=""text/shared/01/06040000.xhp"" name=""Autocorrect"">Autocorrect</link> so that single quotation marks were replaced by <link href=""text/shared/01/06040400.xhp"" name=""typographical quotation marks"">typographical quotation marks</link>.
+```
+is abbreviated to:
+```
+Your text was corrected by <LI0>Autocorrect</LI> so that double quotation marks were replaced by <LI1>typographical quotation marks</LI>
+```
+Abbreviations are removed on import.
+
+`-e`: Automatically translate substrings found in the 'ui' component. Based heuristics substrings which appear as UI strings are detected. A new column in output is added, with these substrings translated. These mixed strings can serve as a reference or can be translated by the Google translate service. If a translation is ambiguous, all possibilities are shown.
+
 
 ### Usage scenarios
 #### Find and correct typos

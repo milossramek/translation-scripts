@@ -7,6 +7,10 @@
 # edit all by sed
 #for i in `find libo_ui-master -name [a-Z]\*.po`; do sed -i -f err-sel.sed $i; done
 
+#find the \x character, which breaks autotranslate
+#the character is the space betwee ""
+#grep "­" `find libo_ui-master/ -name [^.]\*.po`
+
 
 import sys, getopt, csv, re, time
 import os, shutil, filecmp
@@ -45,11 +49,12 @@ def usage():
     print('\tglossary\texport unique messages in csv format to stdout as "source","target". May be used as glossary in OmegaT and maybe elsewhere ')
     print("\t\t                  accelerator characters _ and ~ are removed and newlines replaced by a placeholder")
     print('\texport\t\texport messages in csv format to stdout with newlines replaced by placeholders.')
-    print("\t\t-f                export only conflicting translations (more than one msgstr for one msgid)")
-    print("\t\t-r                export only conflicting translations (reversed, more than one msgid for one msgstr)")
+    print("\t\t-f                export conflicting translations (more than one msgstr for one msgid)")
+    print("\t\t-r                export conflicting translations (reversed, more than one msgid for one msgstr)")
     print("\t\t-g                export translations with inconsistent tags")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
     print("\t\t-a                do not abbreviate tags")
+    print("\t\t-e                automatically translate substrings found in the 'ui' component")
     #print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
     print("\timport\t\timport translations from a csv file")
     print("\t\t-c csv_file       csv file to import translations.")
@@ -58,9 +63,9 @@ def usage():
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaw:p:k:l:c:n:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaew:p:k:l:c:n:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -81,6 +86,8 @@ def parsecmd():
             csv_import = a
         elif o in ("-n"):
             transfer_from = a
+        elif o in ("-e"):
+            autotranslate = True
         elif o in ("-a"):
             no_abbreviation = True
         elif o in ("-f"):
@@ -362,7 +369,7 @@ def export_glossary(project):
                 csvWriter.writerow([eid,estr])
                 mset.add(eid+estr)
 
-# compare tag lists, ignore the name attribute
+# compare tag lists, return False on mismatch. Ignore the 'name' attribute (may be translated, which is however not important)
 def tag_equivalence(itags, stags):
     if len(itags) != len(stags): return False
     itags=sorted([re.sub(r' name="[^"]*"','',t) for t in itags])
@@ -372,13 +379,113 @@ def tag_equivalence(itags, stags):
         return False
     return True
 
+# build the directory autotranslate_dict from UI data to be used in automatic translation and 
+# in tratnslation UI/HELP consistency checking
+# autotranslate_dict: "Source string": set of existing translations in UI
+def build_autotranslate_dictionary():
+    global autotranslate_dict, autotranslate
+    files = load_file_list(projects['ui'], lang)
+    autotranslate_dict=defaultdict(set)
+
+    # do not include these in translation
+    stop_words=["and", "or", "to", "from", ".","\\"]
+    for file in files:
+        print(file)
+        po = polib.pofile(file)
+        for entry in po:
+            if entry.obsolete: continue
+            if not entry.translated(): continue
+            eid = entry.msgid.replace("~","").replace("_","").lower()
+            if eid in stop_words: continue 
+            if eid=="master document":
+                print(entry.msgstr)
+            # remove accelerators
+            estr = entry.msgstr.replace("~","").replace("_","")
+            # add as lower case - owing to usage variants in the help
+            autotranslate_dict[eid].add(estr)
+    return
+
+# identify and translate string parts according to the UI translations
+def autotrans(msg):
+    items = autotranslate_identify(msg)
+    atrans=msg
+    for item in items:
+        if item.lower() in autotranslate_dict:
+            translations = [t for t in autotranslate_dict[item.lower()]]
+            #escape regexp control characters
+            for c in "[()+*?":
+                item=item.replace(c,"[%s]"%c)
+            #replace whole words only
+            if len(translations) == 1:
+                atrans = re.sub(r"\b%s\b"%item,translations[0],atrans)
+            else:
+                atrans = re.sub(r"\b%s\b"%item,str(translations),atrans)
+            #ipdb.set_trace()
+    return atrans
+
+# identify substrings existing in the UI component
+def autotranslate_identify(msg):
+    #split at tags
+    sp="SpLiT"  # split placeholder
+    msplit = re.sub(r"<[^>]*>",sp,msg.replace("–","-"))
+    # split at space dot and comm
+    msplit =msplit.replace(". ", sp).replace(", ",sp)
+    #split in segments
+    msplit = msplit.split(sp)
+    items = []
+    for msp in msplit:
+        if not msp:continue
+        #identify menu sequences 'like Data - Sort - Options or Language settings - Languages.
+        if "-" in msp:
+            for aux in re.findall(r"[A-Z][a-z ]* - .*", msp):
+                # ignore single letter items
+                items += [m for m in aux.split(" - ") if len(m) > 1]
+        # identify capitalized items like 'To replace Colors with the Color Replacer tool'
+        elif re.findall(r"[^.] [A-Z][a-z]+", msp):
+            # find capitalized words following a noncapitalized one
+            #add the first word
+            capWords = [msp[:msp.find(" ")]]
+            # add capitalized words which follow after a non-capitalized one
+            capWords += re.findall(r" [a-z]* ([A-Z][a-z]+)", msp)
+            for capWord in capWords[::-1]:
+                #Try substrings by removing the last word
+                #word position
+                pos = msp.rfind(capWord)
+                mspsub=msp[pos:]
+                while len(mspsub) > 0:
+                    if mspsub.lower() in autotranslate_dict:
+                        items += [mspsub]
+                        mspsub = ""
+                    spacePos = mspsub.rfind(" ")
+                    if spacePos < 0: 
+                        mspsub = ""
+                    else:
+                        mspsub = mspsub[:mspsub.rfind(" ")]
+                #remove the last of msp
+                msp=msp[:pos]
+            #ipdb.set_trace()
+            pass
+        # try the whole substring
+        elif msp.lower() in autotranslate_dict:
+                items += [msp]
+        pass
+    return items
+
+# write csv row for the variants of the export command
+def exportRow(fname, key_id, msgid, msgstr):
+    global exportCSVWriter, autotranslate_dict, autotranslate
+    if autotranslate:
+        if not autotranslate_dict: build_autotranslate_dictionary()
+        abb_msgid = abbreviate_tags(msgid)[0]
+        exportCSVWriter.writerow([fname,key_id,abb_msgid,abbreviate_tags(msgstr)[0], autotrans(abb_msgid)])
+    else:
+        exportCSVWriter.writerow([fname,key_id,abbreviate_tags(msgid)[0],abbreviate_tags(msgstr)[0]])
+
 # export unique messages without newlines
 # can be used for offline translation and subsequent import
 # can be used as a glossary in external translation tools as OmegaT
 def export_inconsistent_tags(project):
     files = load_file_list(projects[project], lang)
-    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
     for file in files:
         po = polib.pofile(file)
         for entry in po:
@@ -395,7 +502,7 @@ def export_inconsistent_tags(project):
                 eid = entry.msgid.replace("\n",line_break_placeholder)
                 estr = entry.msgstr.replace("\n",line_break_placeholder)
                 #ipdb.set_trace()
-                csvWriter.writerow([file,key_id,abbreviate_tags(eid)[0],abbreviate_tags(estr)[0]])
+                exportRow(file,key_id,eid,estr)
                 #test
                 abb, adir = abbreviate_tags(eid)
                 if adir:
@@ -461,8 +568,6 @@ def revert_abbreviations(abb_str, adir):
 # can be used as a glossary in external translation tools as OmegaT
 def export_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
-    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
     for file in files:
         po = polib.pofile(file)
         for entry in po:
@@ -478,13 +583,11 @@ def export_messages_to_csv(project):
 
             eid = eid.replace("\n",line_break_placeholder)
             estr = estr.replace("\n",line_break_placeholder)
-            csvWriter.writerow([file,key_id,abbreviate_tags(eid)[0],abbreviate_tags(estr)[0]])
+            exportRow(file,key_id,eid,estr)
 
 # export conflicting translations
 def export_conflicting_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
-    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
     # dictionary with potentially conflicting entries (if len>1)
     conf_dict = defaultdict(list)
     # a set to detect repetitions
@@ -531,9 +634,9 @@ def export_conflicting_messages_to_csv(project):
         if len(conf_dict[eid]) > 1:
             for val in conf_dict[eid]:
                 if conflicts_only_rev:
-                    csvWriter.writerow([val[0], val[1], abbreviate_tags(val[2])[0], abbreviate_tags(eid)[0]])
+                    exportRow(val[0], val[1], val[2], eid)
                 else:
-                    csvWriter.writerow([val[0], val[1], abbreviate_tags(eid)[0], abbreviate_tags(val[2])[0]])
+                    exportRow(val[0], val[1], eid, val[2])
                 #csvWriter.writerow([file,key_id,abbreviate_tags(eid)[0],abbreviate_tags(estr)[0]])
 
 #export translated tooltips, if they are translated on the 'other' side
@@ -553,8 +656,6 @@ def export_etips_trans_help():
                     ahelp_dir[ahelp_id] = [ahelp_str[0], hfile]
                 pass
     #load ui catalogs and find if they have translated counterpart in help
-    csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    csvWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
     ui_files = load_file_list(projects['ui'], lang)
     for uifile in ui_files:
         po = polib.pofile(uifile)
@@ -826,13 +927,16 @@ tooltips_only=False
 translated_other_side=False
 inconsistent_tags=False
 no_abbreviation=False
+autotranslate=False
+autotranslate_dict=None #dictionary to hold all UI translations
 transfer_from=""
+exportCSVWriter=None
 
 #placeholder to mark line breaks in export
 line_break_placeholder="<LINE_BREAK>"
 
 def main():
-    global token
+    global token, exportCSVWriter, no_abbreviation
 
     #response = http.get("https://en.wikipedia.org/w/api.php")
     action = parsecmd()
@@ -948,6 +1052,9 @@ def main():
         export_glossary(trans_project)
 
     elif action == "ex":    #export
+        if trans_project == 'ui': no_abbreviation = True
+        exportCSVWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        exportCSVWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
         if conflicts_only or conflicts_only_rev:
             export_conflicting_messages_to_csv(trans_project)
         elif inconsistent_tags:
