@@ -54,6 +54,7 @@ def usage():
     print("\t\t-g                export translations with inconsistent tags")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
     print("\t\t-a                do not abbreviate tags")
+    print("\t\t-x lang{,lang}    extra language to add to export as reference (no space after ,)")
     print("\t\t-e                automatically translate substrings found in the 'ui' component")
     #print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
     print("\timport\t\timport translations from a csv file")
@@ -63,9 +64,9 @@ def usage():
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaew:p:k:l:c:n:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaew:p:k:l:c:n:x:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -100,6 +101,13 @@ def parsecmd():
             inconsistent_tags = True
         elif o in ("-o"):
             translated_other_side = True
+        elif o in ("-x"):
+            extra_languages = a.split(",")
+            if extra_languages[-1] == "":
+                usage()
+                sys.exit(0)
+            #ipdb.set_trace()
+            pass
         elif o in ("-h"):
             usage()
             sys.exit(0)
@@ -397,8 +405,6 @@ def build_autotranslate_dictionary():
             if not entry.translated(): continue
             eid = entry.msgid.replace("~","").replace("_","").lower()
             if eid in stop_words: continue 
-            if eid=="master document":
-                print(entry.msgstr)
             # remove accelerators
             estr = entry.msgstr.replace("~","").replace("_","")
             # add as lower case - owing to usage variants in the help
@@ -471,15 +477,43 @@ def autotranslate_identify(msg):
         pass
     return items
 
+#load extra languages for export
+def load_extra_languages(llist):
+    global trans_project
+    trans_dict=defaultdict(list)  # list of dictionaries
+
+    for n in range(len(llist)):
+        files = load_file_list(projects[trans_project], llist[n])
+
+        # do not include these in translation
+        for file in files:
+            po = polib.pofile(file)
+            for entry in po:
+                if entry.obsolete: continue
+                key_id = get_key_id_code(entry)
+                # repeated key-ids are possible, add only once
+                if len(trans_dict[key_id]) < n+1:
+                    trans_dict[key_id].append(entry.msgstr)
+
+    return trans_dict
+
 # write csv row for the variants of the export command
 def exportRow(fname, key_id, msgid, msgstr):
-    global exportCSVWriter, autotranslate_dict, autotranslate
+    global exportCSVWriter, autotranslate_dict, autotranslate, extra_languages, extra_lang_dictionaries
+    if extra_languages and not extra_lang_dictionaries:
+        extra_lang_dictionaries=load_extra_languages(extra_languages)
+
+    abb_msgid = abbreviate_tags(msgid)[0]
+    export_list = [fname,key_id,abb_msgid,abbreviate_tags(msgstr)[0]]
     if autotranslate:
         if not autotranslate_dict: build_autotranslate_dictionary()
-        abb_msgid = abbreviate_tags(msgid)[0]
-        exportCSVWriter.writerow([fname,key_id,abb_msgid,abbreviate_tags(msgstr)[0], autotrans(abb_msgid)])
-    else:
-        exportCSVWriter.writerow([fname,key_id,abbreviate_tags(msgid)[0],abbreviate_tags(msgstr)[0]])
+        export_list = export_list.append(autotrans(abb_msgid))
+    if extra_languages:
+        if not extra_lang_dictionaries:
+            extra_lang_dictionaries=load_extra_languages(extra_languages)
+        export_list = export_list + extra_lang_dictionaries[key_id]
+
+    exportCSVWriter.writerow(export_list)
 
 # export unique messages without newlines
 # can be used for offline translation and subsequent import
@@ -931,6 +965,8 @@ autotranslate=False
 autotranslate_dict=None #dictionary to hold all UI translations
 transfer_from=""
 exportCSVWriter=None
+extra_languages=[]
+extra_lang_dictionaries=[]
 
 #placeholder to mark line breaks in export
 line_break_placeholder="<LINE_BREAK>"

@@ -152,7 +152,7 @@ Possible export types are specified by switches:
 
 If none of these switches is used, all messages are exported.
 
-There are two modifier switches, which influence the output:
+There are modifier switches, which influence the output:
 
 `-a`: Do not abbreviate tags. Normally, tags are abbreviated, which simplifies translation. Makes sense in Help, where tags are often very complex. Example:
 
@@ -167,6 +167,7 @@ Abbreviations are removed on import.
 
 `-e`: Automatically translate substrings found in the 'ui' component. Based heuristics substrings which appear as UI strings are detected. A new column in output is added, with these substrings translated. These mixed strings can serve as a reference or can be translated by the Google translate service. If a translation is ambiguous, all possibilities are shown.
 
+`-x lang{,lang}`    extra language to add to export as reference (no space after ,). An additional column (columns) will be added to export for reference.
 
 ### Usage scenarios
 #### Find and correct typos
