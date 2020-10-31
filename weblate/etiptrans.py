@@ -494,7 +494,6 @@ def load_extra_languages(llist):
                 # repeated key-ids are possible, add only once
                 if len(trans_dict[key_id]) < n+1:
                     trans_dict[key_id].append(entry.msgstr)
-
     return trans_dict
 
 # write csv row for the variants of the export command
@@ -660,18 +659,26 @@ def export_conflicting_messages_to_csv(project):
                 #ipdb.set_trace()
                 pass
             #add to the dictionary
-            if eid+estr.lower() not in repetitions: #ignore case in estr when detecting conflicts
-                repetitions.add(eid+estr.lower())
-                conf_dict[eid].append([fname, key_id, estr])
+            #if eid+estr.lower() not in repetitions: #ignore case in estr when detecting conflicts
+                #repetitions.add(eid+estr.lower())
+                #conf_dict[eid].append([fname, key_id, estr])
+            conf_dict[eid].append([fname, key_id, estr])
     # export only those with more than one entry
     for eid in conf_dict:
-        if len(conf_dict[eid]) > 1:
-            for val in conf_dict[eid]:
-                if conflicts_only_rev:
+        # export only conflicting translations
+        if conflicts_only_rev:
+            unique = set()
+            for val in conf_dict[eid]: unique.add(val[2].lower().replace("_","").replace("~","").replace("-"," "))
+            if len(unique) > 1:
+                for val in conf_dict[eid]:
                     exportRow(val[0], val[1], val[2], eid)
-                else:
+        else:
+            unique = set()
+            for val in conf_dict[eid]: unique.add(val[2])
+            if len(unique) > 1:
+                #ipdb.set_trace()
+                for val in conf_dict[eid]:
                     exportRow(val[0], val[1], eid, val[2])
-                #csvWriter.writerow([file,key_id,abbreviate_tags(eid)[0],abbreviate_tags(estr)[0]])
 
 #export translated tooltips, if they are translated on the 'other' side
 #useful if tooltips on the 'other' side (help) were of poor quality, but still transferred to ui
