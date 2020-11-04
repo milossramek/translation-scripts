@@ -53,6 +53,7 @@ def usage():
     print("\t\t-r                export conflicting translations (reversed, more than one msgid for one msgstr)")
     print("\t\t-g                export translations with inconsistent tags")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
+    print("\t\tswitch modifiers:")
     print("\t\t-a                do not abbreviate tags")
     print("\t\t-x lang{,lang}    extra language to add to export as reference (no space after ,)")
     print("\t\t-e                automatically translate substrings found in the 'ui' component")
@@ -497,13 +498,13 @@ def load_extra_languages(llist):
     return trans_dict
 
 # write csv row for the variants of the export command
-def exportRow(fname, key_id, msgid, msgstr):
+def exportRow(fname, key_id, msgid, msgstr, msgcsrt=""):
     global exportCSVWriter, autotranslate_dict, autotranslate, extra_languages, extra_lang_dictionaries
     if extra_languages and not extra_lang_dictionaries:
         extra_lang_dictionaries=load_extra_languages(extra_languages)
 
     abb_msgid = abbreviate_tags(msgid)[0]
-    export_list = [fname,key_id,abb_msgid,abbreviate_tags(msgstr)[0]]
+    export_list = [fname,key_id,abb_msgid,abbreviate_tags(msgstr)[0],msgcsrt]
     if autotranslate:
         if not autotranslate_dict: build_autotranslate_dictionary()
         export_list = export_list.append(autotrans(abb_msgid))
@@ -616,7 +617,7 @@ def export_messages_to_csv(project):
 
             eid = eid.replace("\n",line_break_placeholder)
             estr = estr.replace("\n",line_break_placeholder)
-            exportRow(file,key_id,eid,estr)
+            exportRow(file,key_id,eid,estr,entry.msgctxt)
 
 # export conflicting translations
 def export_conflicting_messages_to_csv(project):
@@ -656,13 +657,12 @@ def export_conflicting_messages_to_csv(project):
                 aux=eid
                 eid=estr
                 estr=aux
-                #ipdb.set_trace()
                 pass
             #add to the dictionary
             #if eid+estr.lower() not in repetitions: #ignore case in estr when detecting conflicts
                 #repetitions.add(eid+estr.lower())
                 #conf_dict[eid].append([fname, key_id, estr])
-            conf_dict[eid].append([fname, key_id, estr])
+            conf_dict[eid].append([fname, key_id, estr, entry.msgctxt])
     # export only those with more than one entry
     for eid in conf_dict:
         # export only conflicting translations
@@ -671,14 +671,14 @@ def export_conflicting_messages_to_csv(project):
             for val in conf_dict[eid]: unique.add(val[2].lower().replace("_","").replace("~","").replace("-"," "))
             if len(unique) > 1:
                 for val in conf_dict[eid]:
-                    exportRow(val[0], val[1], val[2], eid)
+                    exportRow(val[0], val[1], val[2], eid, val[3])
         else:
             unique = set()
             for val in conf_dict[eid]: unique.add(val[2])
             if len(unique) > 1:
                 #ipdb.set_trace()
                 for val in conf_dict[eid]:
-                    exportRow(val[0], val[1], eid, val[2])
+                    exportRow(val[0], val[1], eid, val[2], val[3])
 
 #export translated tooltips, if they are translated on the 'other' side
 #useful if tooltips on the 'other' side (help) were of poor quality, but still transferred to ui
@@ -785,6 +785,7 @@ def check_removed_spaces(intext, text):
     ocnt = re.sub(r"<[^>]*>","", text)
     ocnt = re.sub(r"[,.$%()]","", ocnt)
     ocnt = re.sub(r"  *"," ", ocnt)
+    if icnt == ocnt: return #e.g. both are empty
     if icnt[0] == " ": icnt=icnt[1:]
     if icnt[-1] == " ": icnt=icnt[:-1]
     if ocnt[0] == " ": ocnt=ocnt[1:]
