@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import sys, getopt, csv, re, time, subprocess, imageio, glob
+import sys, os, getopt, csv, re, time, subprocess, imageio, glob
 import pyscreenshot as ImageGrab
 import ipdb
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.ndimage as ndi
+from collections import defaultdict
 from os import path
 import json
 import polib
@@ -47,8 +48,13 @@ def grab_screen(ui_file):
     return(np.array(im))
 
 def load_file_list(trans_project, lang):
-    with open(path.join(trans_project, lang, 'files.json'), "r") as fp:
-        proj_files = json.load(fp)
+    try:
+        with open(path.join(trans_project, lang, 'files.json'), "r") as fp:
+            proj_files = json.load(fp)
+    except Exception as error: 
+        print("%s:"%sys.argv[0], error)
+        print("\t Download the ui/%s project first using the potrans.py tool"%lang)
+        sys.exit(0)
     return proj_files
 
 # key_id is in one of the rows of poentry.comment (usually the first)
@@ -72,60 +78,66 @@ lang = "sk"
 
 def build_dirs():
     ui_files = load_file_list(projects['ui'], lang)
-    trans_dir ={}
+    trans_dir = defaultdict(list)
     for ufile in ui_files:
         po = polib.pofile(ufile)
         for entry in po:
             if entry.obsolete: continue
             key=get_key_id_code(entry)
-            trans_dir[entry.msgctxt]=[key, entry.msgid, entry.msgstr]
+            trans_dir[entry.msgctxt].append([key, entry.msgid, entry.msgstr])
     return trans_dir
 
 
+# create two new versions of an ui_file: 
+# one with appended keu_id to a translateble string and one with transleted translatable string
 def process_ui_file(ui_file):
     try:
         with open(ui_file) as f:
-            key_text = f.read()
+            ui_text = f.read()
     except Exception as error: 
-        print("%s:"%sys.argv[0], error)
+        print("%s:"%sys.argv[0], error) 
         sys.exit(0)
-    lang_text = key_text
+    #lang_text: ui with strings translated to 'lang'
+    #ui_text: key_id will be appended to original strings
+    lang_text = ui_text
 
 
-    #<property name="label" translatable="yes" context="fmsearchdialog|flOptions">Settings</property>
-    #<item translatable="yes" context="hatchpage|linetypelb">Single</item>
-    #<property name="label" translatable="yes" context="optsavepage|odfwarning_label" comments="EN-US, the term 'extended' must not be translated.">Not using ODF 1.3 Extended may cause information to be lost.</property>
-    prop_re=r'(<property name="[^"]*" translatable="yes" context="[^"]*">[^<]*</property>)'
-    #prop_re=r'<property[^>]*>[^<]*</property>'
-    #prop_re=r'(<property name="[^"]*" translatable="yes"[^>]*>[^<]*</property>)'
-    #prop_re=r'(<property name="[^"]*" translatable="yes"[^>]*>[^<]*</property>)'
-    translatables = re.findall(prop_re, key_text)
+    #find translatable 'property' strings
+    #<property name="label" translatable="yes" context="installforalldialog|yes">_Only for me</property>
+    #<property name="AtkObject::accessible-name" translatable="yes" comments="This string is used by the eyedropper dialog to denote a color in an image that will be replaced by another color." context="dockingcolorreplace|cbx1-atkobject">Source Color 1</property>
+    prop_re=r'(<property name="[^"]*" translatable="yes" [^<]*</property>)'
+    translatables = re.findall(prop_re, ui_text)
 
-    #trans_re=r'<property name="[^"]*" translatable="yes" context="([^"]*)">([^<]*)</property>'
-    trans_re=r'context="([^"]*)"[^>]*>([^<]*)</property>'
-    for tr_in in translatables:
-        if not "context=" in tr_in: continue
-        if 'translatable="no"' in tr_in: continue
-        if "This release was supplied by" in tr_in:
-            ipdb.set_trace()
-            pass
-        trans = re.findall(trans_re, tr_in)
+    context_re=r'context="([^"]*)"[^>]*>([^<]*)</property>'
+    for trans_in in translatables:
+        #if not "context=" in trans_in: continue
+        trans = re.findall(context_re, trans_in)
         if not trans:
             ipdb.set_trace()
             continue
             pass
         trans=trans[0]
-        if not trans[0] in trans_dir:
-            exportCSVWriter.writerow([ui_file]+ ["%s not found"%trans[0]])
+        #trans: (context, string)
+        #('installforalldialog|InstallForAllDialog', 'For whom do you want to install the extension?')
+        if not trans[0] in ui_translations_dir:
+            exportCSVWriter.writerow([ui_file]+ ["%s not found in UI translation"%trans[0]])
             continue
 
-        act_val=trans_dir[trans[0]]
+        #if we happen to have are two or more strings with the same 'context', choose the right one
+        if len(ui_translations_dir[trans[0]]) > 1:
+            for val in ui_translations_dir[trans[0]]:
+                if val[1] == trans[1]:
+                    act_val = val
+                    break
+        else:
+            act_val=ui_translations_dir[trans[0]][0]
     
-        tr_key = tr_in.replace(trans[1],"%s (%s)"%(trans[1], act_val[0]))
-        key_text = key_text.replace(tr_in, tr_key)
+        # modify ui_text and lang_text
+        tr_key = trans_in.replace(trans[1],"%s (%s)"%(trans[1], act_val[0]))
+        ui_text = ui_text.replace(trans_in, tr_key)
     
-        tr_lang = tr_in.replace(trans[1],act_val[2])
-        lang_text = lang_text.replace(tr_in, tr_lang)
+        tr_lang = trans_in.replace(trans[1],act_val[2])
+        lang_text = lang_text.replace(trans_in, tr_lang)
         # export 
         exportCSVWriter.writerow([ui_file]+ act_val) 
 
@@ -133,7 +145,7 @@ def process_ui_file(ui_file):
     fpath = ui_file[:-3]
     fname = "%s-key.ui"%fpath
     with open(fname, "w") as f:
-        f.write(key_text)
+        f.write(ui_text)
     dialog_key=get_dialog(grab_screen(fname))
     if dialog_key is None: 
         print("UI error: %s"%fname, file=sys.stderr)
@@ -148,30 +160,50 @@ def process_ui_file(ui_file):
         return
 
 
-    #concatenate to one image, expect non-equal height
-    #ipdb.set_trace()
+    #concatenate rendered dialogs to one image and save to png file, expect non-equal height/width
     height = max(dialog_key.shape[0], dialog_lang.shape[0])
-    if dialog_key.shape[0] < height:
-        strip = dialog_key[:height-dialog_key.shape[0]].copy()
-        strip[:]=255
-        dialog_key=np.concatenate((dialog_key,strip))
+    width = max(dialog_key.shape[1], dialog_lang.shape[1])
+    if height > 0.7*width:
+        # concatenate horizontally
+        if dialog_key.shape[0] < height:
+            strip = dialog_key[:height-dialog_key.shape[0]].copy()
+            strip[:]=255
+            dialog_key=np.concatenate((dialog_key,strip))
+        else:
+            strip = dialog_lang[:height-dialog_lang.shape[0]].copy()
+            strip[:]=255
+            dialog_lang=np.concatenate((dialog_lang,strip))
+        dialog = np.concatenate((dialog_key, dialog_lang), axis=1)
     else:
-        strip = dialog_lang[:height-dialog_lang.shape[0]].copy()
-        strip[:]=255
-        dialog_lang=np.concatenate((dialog_lang,strip))
-    dialog = np.concatenate((dialog_key, dialog_lang), axis=1)
+        # concatenate vertically
+        if dialog_key.shape[1] < width:
+            strip = dialog_key[:,:width-dialog_key.shape[1]].copy()
+            strip[:]=255
+            dialog_key=np.concatenate((dialog_key,strip), axis=1)
+        else:
+            strip = dialog_lang[:,:width-dialog_lang.shape[1]].copy()
+            strip[:]=255
+            dialog_lang=np.concatenate((dialog_lang,strip), axis=1)
+        dialog = np.concatenate((dialog_key, dialog_lang), axis=0)
     imageio.imwrite("%s.png"%fpath, dialog)
 
 
 def usage():
     global wsite, csv_import, projects
-    proj_abb = [k for k in projects.keys()]
     print()
     print("%s: render LibreOffice ui files"%sys.argv[0])
     print("Usage: ",sys.argv[0]+ " switches directory")
     print("Switches:")
     print("\t-h                this usage")
     print("\t-l lang_code      language code {taken from the WEBLATE_API_LANG environment variable}")
+    print()
+    print("\tThe procedure:")
+    print("\t1. Copy the 'libreofficedevX.Y/share/config/soffice.cfg' directory here")
+    print("\t2. Download the weblate ui project using the 'potrans.py -p ui down' tool here" )
+    print("\t3. Run this script by '%s  soffice.cfg/xxx > trans.csv'"%sys.argv[0])
+    print("\t4. Check the png renderings in soffice.cfg/xxx/ui, modify translations in trans.csv")
+    print("\t5. Import trans.csv by 'potrans.py -p ui -c trans.csv im'")
+    print("\t6. Upload modified translation by 'potrans.py -p ui up'")
 
 
 def parsecmd():
@@ -196,11 +228,12 @@ def parsecmd():
 
 ui_file="soffice.cfg/vcl/ui/moreoptionsdialog.ui"
 ui_file="soffice.cfg/cui/ui/colorpickerdialog.ui"
-glade_bin="/snap/bin/glade"
+glade_bin = os.environ.get('WEBLATE_GLADE_BIN')
+lang = os.environ.get('WEBLATE_API_LANG')
 
 in_files = parsecmd()
 
-trans_dir = build_dirs()
+ui_translations_dir = build_dirs()
 
 exportCSVWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 exportCSVWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
