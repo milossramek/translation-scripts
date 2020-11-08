@@ -1,6 +1,11 @@
 # Weblate
 Scripts related to translation of the LibreOffice user interface, help and other files. LibreOffice uses for translation the [Weblate](https://weblate.org) tool.
-## potrans.py
+
+`potrans.py`: download, export to csv, check, modify and upload LibreOffice translations maintained at the [LibreOffice Weblate server](https://translations.documentfoundation.org/)
+
+`dialogtrans.py`: render translated LibreOffice dialogs.
+
+# potrans.py
 A script to download, modify and upload LibreOffice translation subprojects (in Weblate called *slugs*)  from the [LibreOffice Weblate server](https://translations.documentfoundation.org/) by means of the Weblate's API.
 
 On download the script creates a directory with two copies of each subproject's po file. One of them, starting by dot, is in Linux not visible in regular file viewing and serves as a backup, for example to cancel current changes.
@@ -16,20 +21,20 @@ Abbreviations on the left are shortcuts used in the script commands. The slug na
 
 Using the Weblate's web interface one translates the 'master' sub projects and translations are propagated to other related sub projects (libo_ui-master > libo_ui-7-0 etc.). This does not work when uploading po files using the Weblate's API, so one has to transfer translations between subprojects using this script (libo_ui-master > libo_ui-7-0 etc.) and then upload them separately.
 
-### Using the script
-#### Operating system and dependencies
+## Using the script
+### Operating system and dependencies
 The script was developed and tested in a Linux environment using Python3. Scenarios described below may require also other Linux specific tools.
 
 It is likely that the script and related tools work equally well in WSL ([Windows subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10)).
 
-#### Run the Script
+### Run the Script
 The scripts nas swithes and commands and should be run this way:
 
 `potrans.py switches command`
 
 for example, `potrans.py -h` displays a help.
 
-#### Switches
+### Switches
 Some switches apply to all commands, some switches are command specific.
 
 Common switches are:
@@ -53,7 +58,7 @@ You can find your key in Weblate's GUI [Settings](https://translations.documentf
 
 Commands and their specific switches are described below. We assume that language is set to `sk`. Commands can be abbreviated to usually 2 letters.
 
-### Download a subproject
+## Download a subproject
 
 `potrans.py -p ui download ` (default language: `sk`, taken from environment)
 
@@ -63,13 +68,13 @@ Downloads the `ui` subproject, creates directory `libo_ui-master/lang_code` with
 
 Dowloading of individual files may fail. Usually a failure is detected and download is restarted. Sometimes, however, downloading hangs. In that case abort the script (CRTL-C) and restart it. Already downloaded po files will be skipped.
 
-### Upload a subproject
+## Upload a subproject
 
 `potrans.py -p ui upload ` (default language: `sk`)
 
 `potrans.py -p ui -l cz upload ` (with specified language, in this case `cz`)
 
-### View current changes
+## View current changes
 `potrans.py -p ui modified` lists modified files
 
 `potrans.py -p ui diff` lists differences, for example:
@@ -82,11 +87,11 @@ Differences in  libo_ui-master/sk/sc/messages.po:
 ```
 The line marked by `<` is the original, markred by `>` is the new version.
 
-### Cancel current changes
+## Cancel current changes
 `potrans.py -p ui reset`
 All changes will be cancelled to the download state.
 
-### Remove a subproject
+## Remove a subproject
 Use system tools, e. g.:
 
 `rm -rf libo_ui-master`
@@ -97,7 +102,7 @@ or
 
 to remove only the `sk` language.
 
-### Normalize string ending characters
+## Normalize string ending characters
 Quite often a source string and translated string end with a different character. Weblate can detect some of these inconsistencies and lists them in the `Checks` column. They need to be fixed one-by-one, which is cumbersome.
 
 To fix the problem, run
@@ -118,14 +123,14 @@ or
 	< 'Určuje ďalšie kritériá zoraďovania. Zoraďovacie kľúče môžete kombinovať .'
 	> 'Určuje ďalšie kritériá zoraďovania. Zoraďovacie kľúče môžete kombinovať.'
 ```
-### Export glossary
+## Export glossary
 A two column "Source<TAB>Translation" csv file is exported. It can be used, e. g., in OmegaT as a glossary (OmegaT then offers translation suggestions for substrings of a translated string equal to GUI items):
 ```
 potrans -p ui glossary > output.csv
 ```
 To use the glossary file in OmegaT, copy the resulting csv file to OmegaT's working directory (the 'glossary' subdirectory). It is necessary to change suffix of the file to .txt.
 
-### Export translations
+## Export translations
 The goal is to export translated and/or untranslated messages to a csv file, which can be translated and imported back, used to find typos and translation conflicts or perhaps also for other purposes.
 
 A csv file with 4 tab separated columns is exported:
@@ -169,15 +174,15 @@ Abbreviations are removed on import.
 
 `-x lang{,lang}`    extra language to add to export as reference (no space after ,). An additional column (columns) will be added to export for reference.
 
-### Usage scenarios
-#### Find and correct typos
+## Usage scenarios
+### Find and correct typos
 Weblate does not have a tool to find typos. The proposed procedure consists of several steps: export strings, find typos by a spell checker and correct the typos by the `sed` editor.
 1. Export all strings without accelerators
 
 `potrans.py -p sk -a export >en_sk.csv`
 
 Open the `en_sk.csv` file in LibreOffice, delete columns 1 - 3 (File name, Key Id, English strings) and save as `sk.csv`
-##### 1. Find typos
+#### 1. Find typos
 Run this script:
 ```
 cat sk.csv |tr " " "\n" | tr "/-" "\n"| tr "]" "." |sed -e "s/[.,\"()<*>=:;%?&'{}[]//g"|sed -e "s/[0-9\!\^„“#]//g"|sed -e "s/.*[a-Z][A-Z].*//"|sort|uniq|aspell -l sk list
@@ -186,7 +191,7 @@ The scripts breaks lines in single words (`tr " " "\n" | tr "/-" "\n"`), removes
 
 The script was assembled in a trial-and-error way, maybe that there is a much nicer way, how to reach the same goal.
 
-##### 2. Correct typos
+#### 2. Correct typos
 
 1. Find the file with a typo (`typoo` below), for example by the command
 ```
@@ -204,18 +209,35 @@ for i in `find libo_ui-master -name [^.]\*.po`; do sed -i -f fixerrors.sed $i; d
 ```
 (if using the `bash` shell)
 
-##### 3. Check the changes
+#### 3. Check the changes
 Check the changes by means of the `potrans.py -p ui diff` command. If something went wrong revert the changes (`potrans.pu -p ui re`), modify the sed file and run `sed` again.
 
-##### 4. Upload the modifications
+#### 4. Upload the modifications
 Upload the modifications by `potrans.py -p ui up` to the weblate server.
 
-### Translate strings using Google translate
+## Translate strings using Google translate
 Translation services as Google translate make sense only for longer text strings composed of sentences. GUI translation should be done directly in Weblate.
-#### 1. Export the desired substrings
+### 1. Export the desired substrings
 Use the `export` command (eventually with one of its switches). If necessary, sort the csv file according to text length and delete rows short text.
-#### 2. Use the translation service
+### 2. Use the translation service
 Using LibreOffice copy some rows in the Source column and translate them using https://translate.google.com/. Copy the translation to the Target column.
-#### 3. Check and modify the translation
-#### 4. Import the translation
+### 3. Check and modify the translation
+### 4. Import the translation
 Import the translated csv file using `potrans.py -p help -c infile.csv im`. The Google translate service adds a large amount of spaces (around tags, operators, the $ and % characters which a part of variables). These are removed on import. This removal is probably not perfect, but if it happens to merge words, the import process is aborted and an error message with instructions is displayed.
+
+# dialogtrans.py
+The script renders LibreOffice dialogs (*.ui files) and stores them as a png image with a pair of renditions: an English original (with strings supplemented by a corresponding key_id) and translated version:
+<img src="img/updatedialog.png" width="800px" height="auto">
+
+## The procedure
+1. Copy the `libreofficedevX.Y/share/config/soffice.cfg` directory to the working directory
+1. Download the weblate ui project using the `potrans.py -p ui down` tool to the working directory
+1. Run the script by `dialogtrans.py  soffice.cfg/xxx > trans.csv` to render all ui files in the  `soffice.cfg/xxx` subdirectory (you may specify a single ui file to render just it)
+1. Check the png renderings in `soffice.cfg/xxx/ui`, modify translations in trans.csv
+1. Import `trans.csv` by `potrans.py -p ui -c trans.csv im`
+1. Upload modified translation by `potrans.py -p ui up`
+
+## Created files
+1. A csv file with all translatable strings is written to standard output. It may be modified and imported by the `potrans.py` tool.
+1. For each ui file its two versions are created, with the `-key.ui` and `-lang.ui` suffix. They may be opened by the `glade` tool.
+1. For each ui file a png image with its rendition is created
