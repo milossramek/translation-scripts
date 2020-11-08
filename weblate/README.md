@@ -1,6 +1,6 @@
 # Weblate
 Scripts related to translation of the LibreOffice user interface, help and other files. LibreOffice uses for translation the [Weblate](https://weblate.org) tool.
-## etiptrans.py
+## potrans.py
 A script to download, modify and upload LibreOffice translation subprojects (in Weblate called *slugs*)  from the [LibreOffice Weblate server](https://translations.documentfoundation.org/) by means of the Weblate's API.
 
 On download the script creates a directory with two copies of each subproject's po file. One of them, starting by dot, is in Linux not visible in regular file viewing and serves as a backup, for example to cancel current changes.
@@ -25,9 +25,9 @@ It is likely that the script and related tools work equally well in WSL ([Window
 #### Run the Script
 The scripts nas swithes and commands and should be run this way:
 
-`etiptrans.py switches command`
+`potrans.py switches command`
 
-for example, `etiptrans.py -h` displays a help.
+for example, `potrans.py -h` displays a help.
 
 #### Switches
 Some switches apply to all commands, some switches are command specific.
@@ -55,9 +55,9 @@ Commands and their specific switches are described below. We assume that languag
 
 ### Download a subproject
 
-`etiptrans.py -p ui download ` (default language: `sk`, taken from environment)
+`potrans.py -p ui download ` (default language: `sk`, taken from environment)
 
-`etiptrans.py -p ui -l cz download ` (with specified language, in this case `cz`)
+`potrans.py -p ui -l cz download ` (with specified language, in this case `cz`)
 
 Downloads the `ui` subproject, creates directory `libo_ui-master/lang_code` with the po files.
 
@@ -65,14 +65,14 @@ Dowloading of individual files may fail. Usually a failure is detected and downl
 
 ### Upload a subproject
 
-`etiptrans.py -p ui upload ` (default language: `sk`)
+`potrans.py -p ui upload ` (default language: `sk`)
 
-`etiptrans.py -p ui -l cz upload ` (with specified language, in this case `cz`)
+`potrans.py -p ui -l cz upload ` (with specified language, in this case `cz`)
 
 ### View current changes
-`etiptrans.py -p ui modified` lists modified files
+`potrans.py -p ui modified` lists modified files
 
-`etiptrans.py -p ui diff` lists differences, for example:
+`potrans.py -p ui diff` lists differences, for example:
 
 ```
 Differences in  libo_ui-master/sk/sc/messages.po:
@@ -83,7 +83,7 @@ Differences in  libo_ui-master/sk/sc/messages.po:
 The line marked by `<` is the original, markred by `>` is the new version.
 
 ### Cancel current changes
-`etiptrans.py -p ui reset`
+`potrans.py -p ui reset`
 All changes will be cancelled to the download state.
 
 ### Remove a subproject
@@ -102,11 +102,11 @@ Quite often a source string and translated string end with a different character
 
 To fix the problem, run
 ```
-etiptrans.py -p ui fixchar
+potrans.py -p ui fixchar
 ```
 The command also removes double spaces and removes spaces before the `,` and `.` interpunction.
 
-For example (run `etiptrans.py -p ui diff` to display changes):
+For example (run `potrans.py -p ui diff` to display changes):
 ```
 'Line Spacing:'
 	< 'Riadkovanie'
@@ -121,7 +121,7 @@ or
 ### Export glossary
 A two column "Source<TAB>Translation" csv file is exported. It can be used, e. g., in OmegaT as a glossary (OmegaT then offers translation suggestions for substrings of a translated string equal to GUI items):
 ```
-etiptrans -p ui glossary > output.csv
+potrans -p ui glossary > output.csv
 ```
 To use the glossary file in OmegaT, copy the resulting csv file to OmegaT's working directory (the 'glossary' subdirectory). It is necessary to change suffix of the file to .txt.
 
@@ -138,7 +138,7 @@ The newline characters are replaced by a placeholder <LINE_BREAK> to enable proc
 
 To export translations run
 ```
-etiptrans -p ui {switches} export > output.csv
+potrans -p ui {switches} export > output.csv
 ```
 Possible export types are specified by switches:
 
@@ -174,7 +174,7 @@ Abbreviations are removed on import.
 Weblate does not have a tool to find typos. The proposed procedure consists of several steps: export strings, find typos by a spell checker and correct the typos by the `sed` editor.
 1. Export all strings without accelerators
 
-`etiptrans.py -p sk -a export >en_sk.csv`
+`potrans.py -p sk -a export >en_sk.csv`
 
 Open the `en_sk.csv` file in LibreOffice, delete columns 1 - 3 (File name, Key Id, English strings) and save as `sk.csv`
 ##### 1. Find typos
@@ -205,10 +205,10 @@ for i in `find libo_ui-master -name [^.]\*.po`; do sed -i -f fixerrors.sed $i; d
 (if using the `bash` shell)
 
 ##### 3. Check the changes
-Check the changes by means of the `etiptrans.py -p ui diff` command. If something went wrong revert the changes (`etiptrans.pu -p ui re`), modify the sed file and run `sed` again.
+Check the changes by means of the `potrans.py -p ui diff` command. If something went wrong revert the changes (`potrans.pu -p ui re`), modify the sed file and run `sed` again.
 
 ##### 4. Upload the modifications
-Upload the modifications by `etiptrans.py -p ui up` to the weblate server.
+Upload the modifications by `potrans.py -p ui up` to the weblate server.
 
 ### Translate strings using Google translate
 Translation services as Google translate make sense only for longer text strings composed of sentences. GUI translation should be done directly in Weblate.
@@ -218,4 +218,4 @@ Use the `export` command (eventually with one of its switches). If necessary, so
 Using LibreOffice copy some rows in the Source column and translate them using https://translate.google.com/. Copy the translation to the Target column.
 #### 3. Check and modify the translation
 #### 4. Import the translation
-Import the translated csv file using `etiptrans.py -p help -c infile.csv im`. The Google translate service adds a large amount of spaces (around tags, operators, the $ and % characters which a part of variables). These are removed on import. This removal is probably not perfect, but if it happens to merge words, the import process is aborted and an error message with instructions is displayed.
+Import the translated csv file using `potrans.py -p help -c infile.csv im`. The Google translate service adds a large amount of spaces (around tags, operators, the $ and % characters which a part of variables). These are removed on import. This removal is probably not perfect, but if it happens to merge words, the import process is aborted and an error message with instructions is displayed.
