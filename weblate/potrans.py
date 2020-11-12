@@ -54,6 +54,7 @@ def usage():
     print("\t\t-g                export translations with inconsistent tags")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
     print("\t\tswitch modifiers:")
+    print("\t\t-u                export only translation with conflicting translation UI substrings)")
     print("\t\t-a                do not abbreviate tags")
     print("\t\t-x lang{,lang}    extra language to add to export as reference (no space after ,)")
     print("\t\t-e                automatically translate substrings found in the 'ui' component")
@@ -65,9 +66,9 @@ def usage():
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaew:p:k:l:c:n:x:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaeuw:p:k:l:c:n:x:n:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -92,6 +93,8 @@ def parsecmd():
             autotranslate = True
         elif o in ("-a"):
             no_abbreviation = True
+        elif o in ("-u"):
+            inconsistent_ui_trans = True
         elif o in ("-f"):
             conflicts_only = True
         elif o in ("-r"):
@@ -392,29 +395,28 @@ def tag_equivalence(itags, stags):
 # in tratnslation UI/HELP consistency checking
 # autotranslate_dict: "Source string": set of existing translations in UI
 def build_autotranslate_dictionary():
-    global autotranslate_dict, autotranslate
+    global autotranslate_dict
     files = load_file_list(projects['ui'], lang)
     autotranslate_dict=defaultdict(set)
 
     # do not include these in translation
-    stop_words=["and", "or", "to", "from", ".","\\"]
+    stop_words=["a","this", "and", "or", "to", "from", ".","\\"]
     for file in files:
-        print(file)
         po = polib.pofile(file)
         for entry in po:
             if entry.obsolete: continue
             if not entry.translated(): continue
-            eid = entry.msgid.replace("~","").replace("_","").lower()
+            eid = entry.msgid.replace("~","").replace("_","").replace(":","").lower()
             if eid in stop_words: continue 
             # remove accelerators
-            estr = entry.msgstr.replace("~","").replace("_","")
+            estr = entry.msgstr.replace("~","").replace("_","").replace(":","")
             # add as lower case - owing to usage variants in the help
             autotranslate_dict[eid].add(estr)
     return
 
 # identify and translate string parts according to the UI translations
 def autotrans(msg):
-    items = autotranslate_identify(msg)
+    items = identify_ui_substrings(msg)
     atrans=msg
     for item in items:
         if item.lower() in autotranslate_dict:
@@ -424,59 +426,103 @@ def autotrans(msg):
                 item=item.replace(c,"[%s]"%c)
             #replace whole words only
             if len(translations) == 1:
-                atrans = re.sub(r"\b%s\b"%item,translations[0],atrans)
+                #atrans = re.sub(r"\b%s\b"%item,translations[0],atrans)
+                atrans = re.sub(r"%s"%item,translations[0],atrans)
             else:
-                atrans = re.sub(r"\b%s\b"%item,str(translations),atrans)
+                #atrans = re.sub(r"\b%s\b"%item,str(translations),atrans)
+                atrans = re.sub(r"%s"%item,str(translations),atrans)
             #ipdb.set_trace()
     return atrans
 
 # identify substrings existing in the UI component
-def autotranslate_identify(msg):
-    #split at tags
+def identify_ui_substrings(msg):
+    #check first if there is an ahelp text.
+    # ignore the <ahelp> tag, it is not necessary. 
+    msg = re.sub("<AH.>","",msg)
+    msg = re.sub("</AH>","",msg)
+    msg = re.sub("[0-9]+","",msg)
+    # remove special characters - these were tested in help
+    #msg = re.sub("[#&=/'+:;%_#*$^!“`°~”@]","",msg)
+    #msg = re.sub("[©…]","",msg)
+    msg = msg.replace("%PRODUCTNAME","")
+    msg = msg.replace("$[officename]","")
+    msg = msg.replace("Drag & Drop","Drag and Drop")
+    msg = msg.replace("\\","")
+
+    #split to segments at tags and interpunction
     sp="SpLiT"  # split placeholder
-    msplit = re.sub(r"<[^>]*>",sp,msg.replace("–","-"))
-    # split at space dot and comm
-    msplit =msplit.replace(". ", sp).replace(", ",sp)
+    msg_split = re.sub(r"<[^>]*>",sp,msg.replace("–","-"))
+    msg_split = re.sub(r"[(){}.,−▸?'|]",sp,msg_split)
+    msg_split = msg_split.replace("[",sp)
+    msg_split = msg_split.replace("]",sp)
+    msg_split = msg_split.replace("-",sp)
+
     #split in segments
-    msplit = msplit.split(sp)
-    items = []
-    for msp in msplit:
+    msg_split = [m.strip() for m in msg_split.split(sp)]
+    ui_strings = []
+    #for msp in ah_text+msg_split:
+    for msp in msg_split:
         if not msp:continue
-        #identify menu sequences 'like Data - Sort - Options or Language settings - Languages.
-        if "-" in msp:
-            for aux in re.findall(r"[A-Z][a-z ]* - .*", msp):
-                # ignore single letter items
-                items += [m for m in aux.split(" - ") if len(m) > 1]
-        # identify capitalized items like 'To replace Colors with the Color Replacer tool'
-        elif re.findall(r"[^.] [A-Z][a-z]+", msp):
-            # find capitalized words following a noncapitalized one
-            #add the first word
-            capWords = [msp[:msp.find(" ")]]
-            # add capitalized words which follow after a non-capitalized one
-            capWords += re.findall(r" [a-z]* ([A-Z][a-z]+)", msp)
-            for capWord in capWords[::-1]:
-                #Try substrings by removing the last word
-                #word position
-                pos = msp.rfind(capWord)
-                mspsub=msp[pos:]
-                while len(mspsub) > 0:
-                    if mspsub.lower() in autotranslate_dict:
-                        items += [mspsub]
-                        mspsub = ""
-                    spacePos = mspsub.rfind(" ")
-                    if spacePos < 0: 
-                        mspsub = ""
-                    else:
-                        mspsub = mspsub[:mspsub.rfind(" ")]
-                #remove the last of msp
-                msp=msp[:pos]
-            #ipdb.set_trace()
-            pass
         # try the whole substring
-        elif msp.lower() in autotranslate_dict:
-                items += [msp]
-        pass
-    return items
+        if msp.lower() in autotranslate_dict:
+            ui_strings += [msp]
+        else:
+            #split to segments starting with capitalized word
+            #ipdb.set_trace()
+            segments = segment_string(msp) 
+            for segment in segments:
+                canditate_seg=[]    #list of candidates from each shortened substring
+                # step-by-step shorten by removing the first word
+                # to find "Different Paragraph" in the "Different Paragraph Style to an" string
+                while len(segment) > 0:
+                    rslt = find_ui(segment)
+                    if rslt: canditate_seg.append(rslt)
+                    #ipdb.set_trace()
+                    # remove the first word
+                    spacePos = segment.find(" ")
+                    if spacePos < 0: 
+                        segment = ""
+                    else:
+                        segment = segment[segment.find(" ")+1:]
+                # select the longest candidate substring
+                if canditate_seg:
+                    lengths = [len(s) for s in canditate_seg]
+                    ui_strings.append(canditate_seg[np.argmax(lengths)])
+    #select components starting with capital letter
+    ui_strings = [ss for ss in ui_strings if ss[0].isupper()]
+    return ui_strings
+
+#split string to segments starting with capitalized word
+def segment_string(msg):
+    if len(msg) < 3: return []
+    msg = re.sub(r" +"," ", msg)
+    segments=[]
+    msgsplit = msg.strip().split(" ")
+    segment = ""
+    nn = 0
+    #ipdb.set_trace()
+    while nn < len(msgsplit):
+        while nn < len(msgsplit) and msgsplit[nn][0].isupper(): 
+            segment = "%s %s"%(segment, msgsplit[nn]) 
+            nn += 1
+        # 'or' excludes special character, which are neither lower nor upper case
+        while nn < len(msgsplit) and (msgsplit[nn][0].islower() or not msgsplit[nn][0].isupper()): 
+            segment = "%s %s"%(segment, msgsplit[nn]) 
+            nn += 1
+        segments.append(segment.strip())
+        segment = ""
+    return segments
+
+def find_ui(segment):
+    #ipdb.set_trace()
+    while len(segment) > 0:
+        if segment.lower() in autotranslate_dict:
+            return segment
+        spacePos = segment.rfind(" ")
+        if spacePos > 0: 
+            segment = segment[:segment.rfind(" ")]
+        else:
+            return None
 
 #load extra languages for export
 def load_extra_languages(llist):
@@ -544,6 +590,42 @@ def export_inconsistent_tags(project):
                     if(eid != eeid):
                         ipdb.set_trace()
                         pass
+
+# export unique messages without newlines
+# export messages with inconsisten UI substring translations
+def export_inconsistent_ui_trans(project):
+    global autotranslate_dict
+    files = load_file_list(projects[project], lang)
+    if not autotranslate_dict: build_autotranslate_dictionary()
+    for file in files:
+        po = polib.pofile(file)
+        for entry in po:
+            if entry.obsolete: continue
+            if not entry.translated(): continue
+
+            #if entry.msgid == "Menus":
+                #ipdb.set_trace()
+
+            failed=False
+            for item in identify_ui_substrings(entry.msgid):
+                #ipdb.set_trace()
+                failedItem=True
+                if item.lower() in autotranslate_dict:
+                    translist = [t for t in autotranslate_dict[item.lower()]]
+                    #continue if at least one translation in translist can be found in entry.msgstr
+                    for trans in translist:
+                        if trans in entry.msgstr: 
+                            failedItem=False
+                if not failedItem: 
+                    #if we are here, thanslation was not found
+                    key_id = get_key_id_code(entry)
+                    eid = entry.msgid.replace("\n",line_break_placeholder)
+                    estr = entry.msgstr.replace("\n",line_break_placeholder)
+                    exportRow(file,key_id,eid,estr)
+                    break
+
+            #ipdb.set_trace()
+            pass
 
 
 #abbreviate tags
@@ -970,6 +1052,7 @@ translated_other_side=False
 inconsistent_tags=False
 no_abbreviation=False
 autotranslate=False
+inconsistent_ui_trans=False
 autotranslate_dict=None #dictionary to hold all UI translations
 transfer_from=""
 exportCSVWriter=None
@@ -1103,6 +1186,8 @@ def main():
             export_conflicting_messages_to_csv(trans_project)
         elif inconsistent_tags:
             export_inconsistent_tags(trans_project)
+        elif inconsistent_ui_trans:
+            export_inconsistent_ui_trans(trans_project)
         elif translated_other_side:
             if trans_project == "ui":
                 export_etips_trans_help()
@@ -1120,8 +1205,33 @@ def main():
         pass
 
     else:
-        print("\n%s error: unspecified action '%s'."%(sys.argv[0],action))
-        usage()
+        if not autotranslate_dict: build_autotranslate_dictionary()
+        teststrings=[
+                "oLabel1.Text =",
+                "Drag & Drop",
+                "%PRODUCTNAME and Microsoft Office",
+                "<AH0>Updates the links in the current document.</AH>",
+                "To Apply a Different Paragraph Style to an Index Level",
+                "Choose <IT0>View - Toolbars- Drawing</IT> to open the <IT1>Drawing</IT> toolbar.",
+                "<AH0>Starts the Mail Merge Wizard to create form letters or Send Email Messages to Many Recipients require.</AH>",
+                "xxx Direct Cursor Mode",
+                "To replace Colors with the Color Replacer tool",
+                "<AH0>Adds the selected field from the Address Elements list to the other list.</AH> You can add the same field more than once.",
+                "<AH0>Opens the <LI0>New Address List</LI> dialog, where you can edit the selected address list.</AH>",
+                "<AH0>Opens the <emph>Mail Merge Recipients</emph> dialog.</AH>",
+                "Choose <emph>Format - Frame and Object - Properties - Options</emph>.",
+                "To Switch off the Word Completion",
+                "<LI0>Footnote and Endnote</LI>",
+                "Frame",
+                "<VA0><AH0>Wraps text around the shape of the object. This option is not available for the <emph>Through</emph> wrap type, or for frames.</AH> To change the contour of an object, select the object, and then choose <emph>Format - Wrap - </emph><LI0><emph>Edit Contour</emph></LI>.</VA>",
+                "Toggle Direct Cursor Mode",
+                ]
+        for test in teststrings:
+            items = identify_ui_substrings(test)
+            print(test,items)
+
+        #print("\n%s error: unspecified action '%s'."%(sys.argv[0],action))
+        #usage()
 
 
 if __name__ == "__main__":
