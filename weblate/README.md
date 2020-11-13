@@ -155,6 +155,8 @@ Possible export types are specified by switches:
 
 `-t`: export only extended tooltips (they contain the tag <ahelp> in help and word 'extended' in entry.msgctxt in ui). May be combined with the -f and -r switches.
 
+`-u`: export only strings with conflicting translation of UI substrings. UI substrings are detected first and their translation is searched for the translated string. Translation of the conflicting substring is appended in [] (if a string has several translations, all are appended).
+
 If none of these switches is used, all messages are exported.
 
 There are modifier switches, which influence the output:

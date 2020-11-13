@@ -54,7 +54,7 @@ def usage():
     print("\t\t-g                export translations with inconsistent tags")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
     print("\t\tswitch modifiers:")
-    print("\t\t-u                export only translation with conflicting translation UI substrings)")
+    print("\t\t-u                export only translations with conflicting translation of UI substrings")
     print("\t\t-a                do not abbreviate tags")
     print("\t\t-x lang{,lang}    extra language to add to export as reference (no space after ,)")
     print("\t\t-e                automatically translate substrings found in the 'ui' component")
@@ -607,6 +607,7 @@ def export_inconsistent_ui_trans(project):
                 #ipdb.set_trace()
 
             failed=False
+            ttt=[]
             for item in identify_ui_substrings(entry.msgid):
                 #ipdb.set_trace()
                 failedItem=True
@@ -615,14 +616,18 @@ def export_inconsistent_ui_trans(project):
                     #continue if at least one translation in translist can be found in entry.msgstr
                     for trans in translist:
                         if trans in entry.msgstr: 
+                            #ipdb.set_trace()
                             failedItem=False
-                if not failedItem: 
-                    #if we are here, thanslation was not found
-                    key_id = get_key_id_code(entry)
-                    eid = entry.msgid.replace("\n",line_break_placeholder)
-                    estr = entry.msgstr.replace("\n",line_break_placeholder)
-                    exportRow(file,key_id,eid,estr)
-                    break
+                            break
+                        else:
+                            ttt.append(trans)
+                    if failedItem: 
+                        #if we are here, no translation in translist was found in msgstr
+                        key_id = get_key_id_code(entry)
+                        eid = entry.msgid.replace("\n",line_break_placeholder)
+                        estr = entry.msgstr.replace("\n",line_break_placeholder)
+                        exportRow(file,key_id,eid,estr,str(ttt))
+                        break
 
             #ipdb.set_trace()
             pass
