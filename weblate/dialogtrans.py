@@ -103,13 +103,18 @@ def process_ui_file(ui_file):
 
 
     #find translatable 'property' strings
-    #<property name="label" translatable="yes" context="installforalldialog|yes">_Only for me</property>
     #<property name="AtkObject::accessible-name" translatable="yes" comments="This string is used by the eyedropper dialog to denote a color in an image that will be replaced by another color." context="dockingcolorreplace|cbx1-atkobject">Source Color 1</property>
-    prop_re=r'(<property name="[^"]*" translatable="yes" [^<]*</property>)'
+
+    #These strings seem to occur
+    #<property name="label" translatable="yes" context="installforalldialog|yes">_Only for me</property>
+    #<item id="0" translatable="yes" context="paraindentspacing|liststoreLB_LINEDIST">Single</item>
+    #<item translatable="yes" context="sidebararea|gradientstyle">Radial</item>
+    prop_re=r'(<(property|item)( (name|id)="[^"]*")* translatable="yes" [^<]*</(property|item)>)'
     translatables = re.findall(prop_re, ui_text)
 
-    context_re=r'context="([^"]*)"[^>]*>([^<]*)</property>'
+    context_re=r'context="([^"]*)"[^>]*>([^<]*)</(property|item)>'
     for trans_in in translatables:
+        trans_in = trans_in[0]
         #if not "context=" in trans_in: continue
         trans = re.findall(context_re, trans_in)
         if not trans:
@@ -141,6 +146,7 @@ def process_ui_file(ui_file):
         # export 
         exportCSVWriter.writerow([ui_file]+ act_val) 
 
+    #ipdb.set_trace()
     # create modified ui files and render their content
     fpath = ui_file[:-3]
     fname = "%s-key.ui"%fpath
