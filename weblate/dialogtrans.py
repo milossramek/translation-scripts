@@ -16,19 +16,13 @@ def plot(data):
         plt.plot(range(len(d)),d)
     plt.show()
 
-def _disp(iimg, label = None, gray=False):
-    """ Display an image using pylab
-    """
-    import pylab, matplotlib
-    #matplotlib.interactive(True)
-    matplotlib.pyplot.imshow(iimg, interpolation='none')
-
 def disp(iimg, label = None, gray=False):
     """ Display an image using pylab """
     plt.figure()
     plt.imshow(iimg)
     plt.show()
 
+#detect a rendered dialog window in the provided glade screenshot
 def get_dialog(im, frame_density=196, frame_thickness=3):
     #ipdb.set_trace()
     #ipdb.set_trace()
@@ -39,6 +33,7 @@ def get_dialog(im, frame_density=196, frame_thickness=3):
     nz = np.nonzero(dialog_mask)
     return im[nz[0].min():nz[0].max(),nz[1].min():nz[1].max()] 
 
+# open ui file in glade and create a scrooenshot
 def grab_screen(ui_file):
     subp = subprocess.Popen([glade_bin, ui_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     time.sleep(3.0)
@@ -46,16 +41,6 @@ def grab_screen(ui_file):
     im = ImageGrab.grab()
     subprocess.Popen.kill(subp)
     return(np.array(im))
-
-def load_file_list(trans_project, lang):
-    try:
-        with open(path.join(trans_project, lang, 'files.json'), "r") as fp:
-            proj_files = json.load(fp)
-    except Exception as error: 
-        print("%s:"%sys.argv[0], error)
-        print("\t Download the ui/%s project first using the potrans.py tool"%lang)
-        sys.exit(0)
-    return proj_files
 
 # key_id is in one of the rows of poentry.comment (usually the first)
 def get_key_id_code(poentry):
@@ -67,16 +52,8 @@ def get_key_id_code(poentry):
         key_id=key_id[lenghts[0][0]]
     return key_id
 
-projects = {
-        'help': "libo_help-master",
-        'ui': "libo_ui-master",
-        'ui70': "libo_ui-7-0",
-        'ui64': "libo_ui-6-4",
-        'ui63': "libo_ui-6-3"
-        }
-lang = "sk"
-
-def build_dirs():
+# load ui translations from the *.po files
+def load_ui_translations():
     ui_files = load_file_list(projects['ui'], lang)
     trans_dir = defaultdict(list)
     for ufile in ui_files:
@@ -86,6 +63,17 @@ def build_dirs():
             key=get_key_id_code(entry)
             trans_dir[entry.msgctxt].append([key, entry.msgid, entry.msgstr])
     return trans_dir
+
+# load a list of of po files in the libo_ui-master/lang directory
+def load_file_list(trans_project, lang):
+    try:
+        with open(path.join(trans_project, lang, 'files.json'), "r") as fp:
+            proj_files = json.load(fp)
+    except Exception as error: 
+        print("%s:"%sys.argv[0], error)
+        print("\t Download the ui/%s project first using the potrans.py tool"%lang)
+        sys.exit(0)
+    return proj_files
 
 
 # create two new versions of an ui_file: 
@@ -102,9 +90,7 @@ def process_ui_file(ui_file):
     lang_text = ui_text
 
 
-    #find translatable 'property' strings
-    #<property name="AtkObject::accessible-name" translatable="yes" comments="This string is used by the eyedropper dialog to denote a color in an image that will be replaced by another color." context="dockingcolorreplace|cbx1-atkobject">Source Color 1</property>
-
+    #find translatable 'property' and 'item' strings
     #These strings seem to occur
     #<property name="label" translatable="yes" context="installforalldialog|yes">_Only for me</property>
     #<item id="0" translatable="yes" context="paraindentspacing|liststoreLB_LINEDIST">Single</item>
@@ -123,12 +109,11 @@ def process_ui_file(ui_file):
             pass
         trans=trans[0]
         #trans: (context, string)
-        #('installforalldialog|InstallForAllDialog', 'For whom do you want to install the extension?')
         if not trans[0] in ui_translations_dir:
             exportCSVWriter.writerow([ui_file]+ ["%s not found in UI translation"%trans[0]])
             continue
 
-        #if we happen to have are two or more strings with the same 'context', choose the right one
+        #if we happen to have two or more strings with the same 'context', choose the right one
         if len(ui_translations_dir[trans[0]]) > 1:
             for val in ui_translations_dir[trans[0]]:
                 if val[1] == trans[1]:
@@ -154,7 +139,7 @@ def process_ui_file(ui_file):
         f.write(ui_text)
     dialog_key=get_dialog(grab_screen(fname))
     if dialog_key is None: 
-        print("UI error: %s"%fname, file=sys.stderr)
+        print("Rendered dialog image not found in the screenshot for %s"%fname, file=sys.stderr)
         return
     
     fname = "%s-%s.ui"%(fpath,lang)
@@ -162,9 +147,8 @@ def process_ui_file(ui_file):
         f.write(lang_text)
     dialog_lang=get_dialog(grab_screen(fname))
     if dialog_lang is None: 
-        print("UI error: %s"%fname, file=sys.stderr)
+        print("Rendered dialog image not found in the screenshot for %s"%fname, file=sys.stderr)
         return
-
 
     #concatenate rendered dialogs to one image and save to png file, expect non-equal height/width
     height = max(dialog_key.shape[0], dialog_lang.shape[0])
@@ -197,15 +181,16 @@ def process_ui_file(ui_file):
 def usage():
     global wsite, csv_import, projects
     print()
-    print("%s: render LibreOffice ui files"%sys.argv[0])
+    print("%s: render translated LibreOffice ui files"%sys.argv[0])
     print("Usage: ",sys.argv[0]+ " switches directory")
     print("Switches:")
     print("\t-h                this usage")
     print("\t-l lang_code      language code {taken from the WEBLATE_API_LANG environment variable}")
+    print("\t-g glade_bin      the glade program {taken from the WEBLATE_GLADE_BIN environment variable}")
     print()
     print("\tThe procedure:")
     print("\t1. Copy the 'libreofficedevX.Y/share/config/soffice.cfg' directory here")
-    print("\t2. Download the weblate ui project using the 'potrans.py -p ui down' tool here" )
+    print("\t2. Download the weblate ui project using 'potrans.py -p ui down'" )
     print("\t3. Run this script by '%s  soffice.cfg/xxx > trans.csv'"%sys.argv[0])
     print("\t4. Check the png renderings in soffice.cfg/xxx/ui, modify translations in trans.csv")
     print("\t5. Import trans.csv by 'potrans.py -p ui -c trans.csv im'")
@@ -213,9 +198,9 @@ def usage():
 
 
 def parsecmd():
-    global lang
+    global lang, glade_bin
     try:
-        opts, ddir = getopt.getopt(sys.argv[1:], "hl:", [])
+        opts, ddir = getopt.getopt(sys.argv[1:], "hl:g:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -224,6 +209,8 @@ def parsecmd():
     for o, a in opts:
         if o in ("-l"):
             lang = a
+        elif o in ("-g"):
+            glade_bin = a
         elif o in ("-h"):
             usage()
             sys.exit(0)
@@ -232,14 +219,13 @@ def parsecmd():
     return ddir
 
 
-ui_file="soffice.cfg/vcl/ui/moreoptionsdialog.ui"
-ui_file="soffice.cfg/cui/ui/colorpickerdialog.ui"
 glade_bin = os.environ.get('WEBLATE_GLADE_BIN')
 lang = os.environ.get('WEBLATE_API_LANG')
+projects = { 'ui': "libo_ui-master", }
 
 in_files = parsecmd()
 
-ui_translations_dir = build_dirs()
+ui_translations_dir = load_ui_translations()
 
 exportCSVWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 exportCSVWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
@@ -247,9 +233,12 @@ exportCSVWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
 for in_file in in_files:
     if in_file[-3:] == ".ui":
         ui_files = [in_file]
+    if in_file[-3:] == "/ui":
+        ui_files=glob.glob(in_file+"/*.ui")
     else:
         ui_files=glob.glob(in_file+"/ui/*.ui")
     for ui_file in ui_files:
+        # skip files earlier generated by this script
         if "-key.ui" in ui_file or "-%s.ui"%lang in ui_file: continue
         process_ui_file(ui_file)
 
