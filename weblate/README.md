@@ -28,7 +28,7 @@ The script was developed and tested in a Linux environment using Python3. Scenar
 It is likely that the script and related tools work equally well in WSL ([Windows subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10)).
 
 ### Run the Script
-The scripts nas swithes and commands and should be run this way:
+The scripts has switches and commands and should be run this way:
 
 `potrans.py switches command`
 
@@ -66,7 +66,7 @@ Commands and their specific switches are described below. We assume that languag
 
 Downloads the `ui` subproject, creates directory `libo_ui-master/lang_code` with the po files.
 
-Dowloading of individual files may fail. Usually a failure is detected and download is restarted. Sometimes, however, downloading hangs. In that case abort the script (CRTL-C) and restart it. Already downloaded po files will be skipped.
+Downloading of individual files may fail. Usually a failure is detected and download is restarted. Sometimes, however, downloading hangs. In that case abort the script (CRTL-C) and restart it. Already downloaded po files will be skipped.
 
 ## Upload a subproject
 
@@ -85,11 +85,11 @@ Differences in  libo_ui-master/sk/sc/messages.po:
        < _Zobraziť zmeny v zošite
 	   > _Zobraziť zmeny v hárku
 ```
-The line marked by `<` is the original, markred by `>` is the new version.
+The line marked by `<` is the original, marked by `>` is the new version.
 
 ## Cancel current changes
 `potrans.py -p ui reset`
-All changes will be cancelled to the download state.
+All changes will be canceled to the download state.
 
 ## Remove a subproject
 Use system tools, e. g.:
@@ -109,7 +109,7 @@ To fix the problem, run
 ```
 potrans.py -p ui fixchar
 ```
-The command also removes double spaces and removes spaces before the `,` and `.` interpunction.
+The command also removes double spaces and removes spaces before the `,` and `.`.
 
 For example (run `potrans.py -p ui diff` to display changes):
 ```
@@ -153,7 +153,7 @@ Possible export types are specified by switches:
 
 `-g`: export translations with inconsistent tags
 
-`-t`: export only extended tooltips (they contain the tag <ahelp> in help and word 'extended' in entry.msgctxt in ui). May be combined with the -f and -r switches.
+`-t`: export only extended tool tips (they contain the tag <ahelp> in help and word 'extended' in entry.msgctxt in ui). May be combined with the -f and -r switches.
 
 `-u`: export only strings with conflicting translation of UI substrings. UI substrings are detected first and their translation is searched for the translated string. Translation of the conflicting substring is appended in [] (if a string has several translations, all are appended).
 
@@ -233,7 +233,7 @@ The script renders LibreOffice dialogs (*.ui files) and stores them as a png ima
 
 ## The procedure
 1. Copy the `libreofficedevX.Y/share/config/soffice.cfg` directory to the working directory
-1. Download the weblate ui project using the `potrans.py -p ui down` tool to the working directory
+1. Download the weblate ui project using `potrans.py -p ui down` to the working directory
 1. Run the script by `dialogtrans.py  soffice.cfg/xxx > trans.csv` to render all ui files in the  `soffice.cfg/xxx` subdirectory (you may specify a single ui file to render just it)
 1. Check the png renderings in `soffice.cfg/xxx/ui`, modify translations in trans.csv
 1. Import `trans.csv` by `potrans.py -p ui -c trans.csv im`
