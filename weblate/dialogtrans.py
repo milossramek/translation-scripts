@@ -230,7 +230,6 @@ ui_translations_dir = load_ui_translations()
 exportCSVWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 exportCSVWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
 
-ipdb.set_trace()
 for in_file in in_files:
     if in_file[-3:] == ".ui":
         ui_files = [in_file]
