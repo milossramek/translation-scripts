@@ -594,7 +594,7 @@ def export_inconsistent_tags(project):
 # export unique messages without newlines
 # export messages with inconsisten UI substring translations
 def export_inconsistent_ui_trans(project):
-    global autotranslate_dict
+    global autotranslate_dict, tooltips_only
     files = load_file_list(projects[project], lang)
     if not autotranslate_dict: build_autotranslate_dictionary()
     for file in files:
@@ -602,6 +602,7 @@ def export_inconsistent_ui_trans(project):
         for entry in po:
             if entry.obsolete: continue
             if not entry.translated(): continue
+            if tooltips_only and not ("<ahelp" in entry.msgid or "extended" in entry.msgctxt): continue
 
             #if entry.msgid == "Menus":
                 #ipdb.set_trace()
@@ -694,10 +695,7 @@ def export_messages_to_csv(project):
         for entry in po:
             if entry.obsolete: continue
 
-            if tooltips_only and project == "help":
-                if not "<ahelp" in entry.msgid: continue
-            elif tooltips_only and project == "ui":
-                if not "extended" in entry.msgctxt: continue
+            if tooltips_only and not ("<ahelp" in entry.msgid or "extended" in entry.msgctxt): continue
             eid = entry.msgid
             estr = entry.msgstr
             key_id = get_key_id_code(entry)
