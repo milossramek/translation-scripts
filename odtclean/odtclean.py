@@ -13,7 +13,7 @@ import zipfile
 from lxml import etree
 from StringIO import StringIO
 from copy import deepcopy
-import sys, getopt
+import sys, getopt, tempfile
 import ipdb
 #ipdb.set_trace()
 
@@ -301,11 +301,10 @@ def parsecmd():
 oname = 'ofile.odt'
 iname = 'ifile.odt'
 parsecmd()
-tmpdir=os.tempnam()
 verbose=True #
 
 # directory to extract th eodt file to
-os.mkdir(tmpdir)
+tmpdir=tempfile.mkdtemp()
 actdir=os.getcwd()
 if not os.path.isabs(iname):
     iname = actdir+'/'+iname
