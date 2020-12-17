@@ -7,6 +7,8 @@
 # Author Milos Sramek milos.sramek@soit.sk
 # Use as you wish, without warranty
 
+# May 20, 2020: Removed unnecessaty stuff using lxml
+
 import sys, getopt, os, shutil,re
 import zipfile
 
@@ -312,16 +314,30 @@ def removeInFileRE(fname, tags):
     with open(fname) as ifile:
         text=ifile.read()
 
-    #text='<text:p text:style-name="LibOTextkörper"><text:span text:style-name="LibOStandard">Dieses Dokument unterliegt dem Copyright © 201</text:span><text:span text:style-name="LibOStandard"><text:span text:style-name="T54">4</text:span></text:span><text:span text:style-name="LibOStandard">. Die Beitragenden sind unten aufgeführt. Sie dürfen dieses Dokument unter den Bedingungen der GNU General Public License (</text:span><text:a xlink:type="simple" xlink:href="http://www.gnu.org/licenses/gpl.html" text:style-name="Internet_20_link" text:visited-style-name="Visited_20_Internet_20_Link"><text:span text:style-name="LibOStandard">http://www.\xadgnu.org/licenses/gpl.html</text:span></text:a><text:span text:style-name="LibOStandard">), Version 3 oder höher, oder der </text:span><text:span text:style-name="LibOStandard"><text:span text:style-name="T2">Creative Commons Attribution License</text:span></text:span><text:span text:style-name="LibOStandard"> (</text:span><text:a xlink:type="simple" xlink:href="http://creativecommons.org/licenses/by/3.0/" text:style-name="Internet_20_link" text:visited-style-name="Visited_20_Internet_20_Link"><text:span text:style-name="LibOStandard">http://creativecommons.org/licenses/by/3.0/</text:span></text:a><text:span text:style-name="LibOStandard">), Version 3.0 oder höher, verändern und/oder weitergeben.</text:span></text:p>'
 
+    # replace by placeholders to simplify regular expressions later
+    text = text.replace("<text:s/>","ASDFGH2323_0")
+    text = text.replace("<text:line-break/>","ASDFGH2323_1")
+
+    # <text:span text:style-name="T18">text without tags</text:span>`
     text = re.sub(r'<text:span text:style-name="T[0-9]*">([^<]*)</text:span>',r'\1', text)
-    text = re.sub(r'<text:span text:style-name="T[0-9]*">([^<]*<text:line-break/>[^<]*)</text:span>',r'\1', text)
-    for tag in tags:
-        pass
+    # text with one tag
+    # <text:span text:style-name="T18"><text:user-defined style:data-style-name="N0" text:name="LibreOffice Version">6.4</text:user-defined></text:span>`
+    text = re.sub(r'<text:span text:style-name="T[0-9]*">(<([^ ]*)[^>]*>[^<]*</\2>)</text:span>', r"\1",text)
+    # text with one selfclosing tag
+    #<text:span text:style-name="T9"><text:bookmark-ref text:reference-format="number" text:ref-name="__RefHeading___Toc3630_208225428"/></text:span>
+    text = re.sub(r'<text:span text:style-name="T[0-9]*">(<[^>]*/>)</text:span>', r"\1",text)
+
+    #for tag in tags:
+        #pass
         #ipdb.set_trace()
-        text = re.sub(r'<text:span text:style-name="%s">([^<]*)</text:span>'%tag,r'\1',text)
-        text = re.sub(r'<text:span text:style-name="%s">([^<]*<text:line-break/>[^<]*)</text:span>'%tag,r'\1',text)
-    text = re.sub(r'<text:span text:style-name="T[0-9]*">([^<]*<text:line-break/>[^<]*)</text:span>',r'\1', text)
+        #text = re.sub(r'<text:span text:style-name="%s">([^<]*)</text:span>'%tag,r'\1',text)
+        #text = re.sub(r'<text:span text:style-name="%s">([^<]*<text:line-break/>[^<]*)</text:span>'%tag,r'\1',text)
+    #text = re.sub(r'<text:span text:style-name="T[0-9]*">([^<]*<text:line-break/>[^<]*)</text:span>',r'\1', text)
+
+    # revert placeholders
+    text = text.replace("ASDFGH2323_1","<text:line-break/>")
+    text = text.replace("ASDFGH2323_0","<text:s/>")
     with open(fname, "w") as ifile:
         ifile.write(text)
 
@@ -353,12 +369,13 @@ zf = zipfile.ZipFile(oname, "w")
 os.chdir(tmpdir)
 
 removeInFileRE('content.xml', ['LibOStandard', 'Character_20_style'])
-removeInFile('content.xml', 'T') 
-removeInFile('content.xml', 'T') 
-removeInFile('content.xml', 'Character_20_style')
-removeInFile('content.xml', 'Character_20_style')
-removeInFile('content.xml', 'LibOStandard')
-removeInFile('content.xml', 'LibOStandard')
+removeInFileRE('styles.xml', ['LibOStandard', 'Character_20_style'])
+#removeInFile('content.xml', 'T') 
+#removeInFile('content.xml', 'T') 
+#removeInFile('content.xml', 'Character_20_style')
+#removeInFile('content.xml', 'Character_20_style')
+#removeInFile('content.xml', 'LibOStandard')
+#removeInFile('content.xml', 'LibOStandard')
 
 #os.system('zip -r '+oname+' *')
 # save the modified document
