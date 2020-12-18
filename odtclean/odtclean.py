@@ -76,9 +76,12 @@ def mergeSameSpans(tree):
                 iitem.getparent().replace(iitem, item)
 
 def usage():
-    print("Remove direct character formatting and some other tags")
-    print("from an odt document")
-    print("Usage: ",sys.argv[0]+ " -i ifile.odt -o ofile.odt")
+    global iname, oname
+    print("Remove direct character formatting from an odt document")
+    print("Usage: ",sys.argv[0]+ " switches ")
+    print("\t-h                this usage")
+    print("\t-i input_file     a file to clean {%s}"%iname)
+    print("\t-o output_file    a cleaned file {%s}"%oname)
 
 def parsecmd():
     global iname, oname
@@ -147,13 +150,19 @@ def procRE(fname, tags=[]):
     with open(fname, "w") as ifile:
         ifile.write(text)
 
-oname = 'ofile.odt'
-iname = 'ifile.odt'
+oname = './ofile.odt'
+iname = './ifile.odt'
 parsecmd()
+
+if not os.path.isfile(iname):
+    print("%s error: file %s does not exist"%(sys.argv[0], iname))
+    iname = './ifile.odt'
+    usage()
+    sys.exit(0)
 tmpdir=tempfile.mkdtemp()
 verbose=True #
 
-# directory to extract th eodt file to
+# directory to extract the odt file to
 actdir=os.getcwd()
 if not os.path.isabs(iname):
     iname = actdir+'/'+iname
@@ -161,8 +170,14 @@ if not os.path.isabs(oname):
     oname = actdir+'/'+oname
 
 #extract the document
-with zipfile.ZipFile(iname, "r") as z:
-    z.extractall(tmpdir)
+try:
+    with zipfile.ZipFile(iname, "r") as z:
+        z.extractall(tmpdir)
+except zipfile.BadZipFile as err:
+    print("%s error: file %s is not an odt file"%(sys.argv[0], iname))
+    iname = './ifile.odt'
+    usage()
+    sys.exit(0)
 
 # remove output, if exists. Otherwise the zip routine would update it
 if os.path.isfile(oname):
