@@ -22,6 +22,18 @@ Usage:  ./odtclean.py switches
 	-o output_file    a cleaned file {./ofile.odt}
 ```
 Maybe that you will have to install some python3 modules.
+
+In certain situations tags are not removed. In that case a message is written:
+
+```
+T[0-9]* tags not fixed:
+```
+followed by the list of not cleaned tags (which may be pretty complex):
+
+```<text:span text:style-name="T10"><draw:frame draw:style-name="fr22" draw:name="Object3" text:anchor-type="as-char" svg:y="-0.619cm" svg:width="0.51cm" svg:height="1cm" draw:z-index="21"><draw:object xlink:href="./Object 7" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/><draw:image xlink:href="./ObjectReplacements/Object 7" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame></text:span```
+
+These pose no problem for translation.
+
 ## Manual preprocessing
 As the script removes all direct character formatting, one needs to change useful direct formatting to appropriate styles.
 
@@ -40,7 +52,7 @@ odtclean.py -i GS6400-Preface.odt ../Cleaned/GS6400-Preface.odt
 ```
 To clean all documents in the directory run (when using `bash`):
 ```
-for i in *.odt; do odtclean.py -i $i -o ../Cleaned/$i; done
+for i in *.odt; do echo $i; odtclean.py -i $i -o ../Cleaned/$i; done
 ```
 ## Verification of correctness
 One can verify correctness of cleaning by opening a file from the `Modified` directory and comparing it with the corresponding file from the `Cleaned` directory by using `Edit > Track Changes > Compare Documents`. No differences should be displayed.
