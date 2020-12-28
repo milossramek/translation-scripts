@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Module1" script:language="StarBasic" script:moduleType="normal">REM  *****  BASIC  *****
+
+Sub CharStylesHighlight
+ oFamilies = ThisComponent.StyleFamilies.getByName(&quot;CharacterStyles&quot;)
+    oStyle = oFamilies.getByName(&quot;Emphasis&quot;)
+    oStyle.CharBackColor = RGB(255,100,255)
+    oStyle = oFamilies.getByName(&quot;Strong Emphasis&quot;)
+    oStyle.CharBackColor = RGB(100,255,100)
+    oStyle = oFamilies.getByName(&quot;Keystroke&quot;)
+    oStyle.CharBackColor = RGB(100,255,255)
+    oStyle = oFamilies.getByName(&quot;Source Text&quot;)
+    oStyle.CharBackColor = RGB(245,222,179)
+    oStyle = oFamilies.getByName(&quot;User Entry&quot;)
+    oStyle.CharBackColor = RGB(205,133,63)
+End Sub
+
+Sub CharStylesReset
+ oFamilies = ThisComponent.StyleFamilies.getByName(&quot;CharacterStyles&quot;)
+    oStyle = oFamilies.getByName(&quot;Emphasis&quot;)
+    oStyle.CharBackColor = -1
+    oStyle = oFamilies.getByName(&quot;Strong Emphasis&quot;)
+    oStyle.CharBackColor = -1
+    oStyle = oFamilies.getByName(&quot;Keystroke&quot;)
+    oStyle.CharBackColor = -1
+    oStyle = oFamilies.getByName(&quot;Source Text&quot;)
+    oStyle.CharBackColor = -1
+    oStyle = oFamilies.getByName(&quot;Code&quot;)
+    oStyle.CharBackColor = RGB(238,238,238)
+    oStyle = oFamilies.getByName(&quot;User Entry&quot;)
+    oStyle.CharBackColor = -1
+End Sub
+REM  *****  BASIC  *****
+</script:module>
