@@ -27,7 +27,7 @@ As the script removes all direct character formatting, one needs to change usefu
 
 A tested procedure (using LibreOffice):
 1. Open a document
-1. Modify background of the used character styles (`Emphasis`, `Strong Emphasis`, etc), so that they are clearly visible in the text
+1. Modify background of the used character styles (`Emphasis`, `Strong Emphasis`, etc), so that they are clearly visible in the text. The `LOGuidesStyles.oxt` extension may help.
 1. Search for manual bold and italics (and maybe others) using the `Find & Replace` tool (`Attributes > Font Weight` or `Attributes > Font Posture`). Replace to the appropriate character style.
 1. Text with style "undone" by direct formatting is visible thanks to the colored background of the style. Change its style to `Default Character Style`.
 1. Revert the style background color to `None`.
@@ -44,3 +44,9 @@ for i in *.odt; do odtclean.py -i $i -o ../Cleaned/$i; done
 ```
 ## Verification of correctness
 One can verify correctness of cleaning by opening a file from the `Modified` directory and comparing it with the corresponding file from the `Cleaned` directory by using `Edit > Track Changes > Compare Documents`. No differences should be displayed.
+## The `LOGuidesStyles.oxt` extension
+The extension can be used to `Highlight Character Styles` and to `Reset Character Styles`. These functions can be accessed either using a tool bar `Add On 2` or in `Tools > Add-Ons`.
+
+Highlighted styles used in LO Guides:
+
+<img src="img/LOGuidesStyles.png" width="400px" height="auto">
