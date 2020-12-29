@@ -116,6 +116,9 @@ def procRE(fname, tags=[]):
     with open(fname) as ifile:
         text=ifile.read()
 
+    # use https in all links
+    text = text.replace('xlink:href="http://', 'xlink:href="https://')
+
     # replace by placeholders to simplify regular expressions later
     text = text.replace("<text:s/>","ASDFGH2323_0")
     text = text.replace("<text:line-break/>","ASDFGH2323_1")
