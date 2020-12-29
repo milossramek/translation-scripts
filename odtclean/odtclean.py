@@ -75,6 +75,48 @@ def mergeSameSpans(tree):
                         if isSimpleTag(prevItem): prevSpanType = getSpanType(prevItem)
                 iitem.getparent().replace(iitem, item)
 
+def isA(item):
+    return item.tag[-2:] == "}a"
+
+def getHref(item):
+    if '{http://www.w3.org/1999/xlink}href' in item.attrib:
+        return item.attrib['{http://www.w3.org/1999/xlink}href']
+    else:
+        return None
+
+def mergeSameURLs(tree):
+    """
+    Merge consecutive spans with the same style-name
+    """
+    for iitem in tree.xpath('//*'):
+        if isP(iitem) and iitem.getchildren():
+            if len(iitem.getchildren()) > 1:
+                item = deepcopy(iitem)
+                elist = list(item)
+                prevHref = None
+                prevItem = elist[0]
+                if isSimpleTag(prevItem): prevHref = getHref(prevItem)
+                for el in elist[1:]:
+                    # ignore hrefs starting with # (e. g. #__RefHeading__30909_1380607024)
+                    if isA(el) and (not el.getchildren()) and getHref(el) == prevHref and prevHref[0] != "#":
+                        if verbose: print("Merged 'a' tags: %s (Context: %s|%s)"%(prevHref, prevItem.text, el.text))
+                        if el.text and prevItem.text:
+                            prevItem.text = prevItem.text + el.text
+                        elif el.text:
+                            prevItem.text = el.text
+                        # if e.tail exists, assign it to the previous item
+                        # and restart 'a' tag search
+                        if el.tail: 
+                            prevItem.tail = el.tail
+                            prevHref = None
+                        item.remove(el)
+                    else:
+                        prevItem = el
+                        prevHref = None
+                        if isSimpleTag(prevItem): prevHref = getHref(prevItem)
+                iitem.getparent().replace(iitem, item)
+
+
 def usage():
     global iname, oname
     print("Remove direct character formatting from an odt document")
@@ -82,11 +124,13 @@ def usage():
     print("\t-h                this usage")
     print("\t-i input_file     a file to clean {%s}"%iname)
     print("\t-o output_file    a cleaned file {%s}"%oname)
+    print("\t-v                be verbose (list modifications in URLs and similar)")
+    print("\t-n                list tags, which were not fixed")
 
 def parsecmd():
-    global iname, oname
+    global iname, oname, verbose, listnotfixed
     try:
-        opts, Names = getopt.getopt(sys.argv[1:], "hi:o:", [])
+        opts, Names = getopt.getopt(sys.argv[1:], "hvni:o:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized"
@@ -97,6 +141,10 @@ def parsecmd():
             oname = a
         elif o in ("-i"):
             iname = a
+        elif o in ("-v"):
+            verbose = True
+        elif o in ("-n"):
+            listnotfixed = True
         elif o in ("-h"):
             usage()
             sys.exit(0)
@@ -108,6 +156,7 @@ def procXML(fname):
     # parse the 'content.xml' file and clean up
     tree = etree.parse(fname)
     mergeSameSpans(tree)
+    mergeSameURLs(tree)
     tree.write(fname)
 
 # remove tag using regexps
@@ -117,6 +166,12 @@ def procRE(fname, tags=[]):
         text=ifile.read()
 
     # use https in all links
+    http = re.findall(r'xlink:href="http://[^"]*',text)
+    if verbose and http:
+        print("URLs changed from http to https (URLs only, not text):")
+        for ht in http:
+            print("\t%s"%ht)
+
     text = text.replace('xlink:href="http://', 'xlink:href="https://')
 
     # replace by placeholders to simplify regular expressions later
@@ -141,11 +196,11 @@ def procRE(fname, tags=[]):
 
         # display the unchanged T tags
         unchanged=re.findall(r'<text:span text:style-name="%s".*?</text:span>'%tag,text)
-        if unchanged:
+        if listnotfixed and unchanged:
             print("%s tags not fixed:"%tag)
-        for un in unchanged:
-            print(un)
-            print()
+            for un in unchanged:
+                print(un)
+                print()
 
     # revert placeholders
     text = text.replace("ASDFGH2323_1","<text:line-break/>")
@@ -155,6 +210,8 @@ def procRE(fname, tags=[]):
 
 oname = './ofile.odt'
 iname = './ifile.odt'
+verbose = False
+listnotfixed = False
 parsecmd()
 
 if not os.path.isfile(iname):
@@ -163,7 +220,6 @@ if not os.path.isfile(iname):
     usage()
     sys.exit(0)
 tmpdir=tempfile.mkdtemp()
-verbose=True #
 
 # directory to extract the odt file to
 actdir=os.getcwd()

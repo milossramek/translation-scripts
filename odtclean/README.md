@@ -20,10 +20,15 @@ Usage:  ./odtclean.py switches
 	-h                this usage
 	-i input_file     a file to clean {./ifile.odt}
 	-o output_file    a cleaned file {./ofile.odt}
+	-v                be verbose (list modifications in URLs and similar)
+	-n                list tags, which were not fixed
+
 ```
 Maybe that you will have to install some python3 modules.
 
-In certain situations tags are not removed. In that case a message is written:
+The `-v` switch enables to list some additional modifications: conversion of *http* in URL links to *https* and merging of neighboring links (which are often created when editing a link directly — i. e. not by using the *Edit hyperlink...* tool).  
+
+In certain situations tags are not removed. In that case, when usint the `-n` switch, a message is written:
 
 ```
 T[0-9]* tags not fixed:
