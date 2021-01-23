@@ -962,14 +962,15 @@ def import_translations(project):
         hdr=["File name","KeyID","Source","Target"]
         for row in reader:
             if import_dir is None: 
-                if row[1] != hdr[1]:
+                if row != hdr:
                     print(f'\n%s import error: incorrect table header, expected "%s,%s,%s,%s".'%tuple([sys.argv[0]]+hdr))
                     sys.exit(1)
                 else:
                     import_dir = {}
                     continue
-            if len(row) != 4:
-                print(f"\n%s import error: inconsistent number of columns at %s."%(sys.argv[0], row))
+            if len(row) < 4:
+                ipdb.set_trace()
+                print(f"\n%s import error: insufficient number of columns at %s."%(sys.argv[0], row))
                 sys.exit(1)
             import_dir[row[1]] = row[2:]
 
