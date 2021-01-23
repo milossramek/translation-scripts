@@ -50,12 +50,13 @@ def usage():
     print('\tglossary\texport unique messages in csv format to stdout as "source","target". May be used as glossary in OmegaT and maybe elsewhere ')
     print("\t\t                  accelerator characters _ and ~ are removed and newlines replaced by a placeholder")
     print('\texport\t\texport messages in csv format to stdout (with newlines replaced by placeholders)')
+    print("\t\t-u                export only untranslated messages")
     print("\t\t-f                export conflicting translations (more than one msgstr for one msgid)")
     print("\t\t-r                export conflicting translations (reversed, more than one msgid for one msgstr)")
     print("\t\t-g                export translations with inconsistent tags")
     print("\t\t-t                export only extended tooltips (<ahelp> in help, 'extended' in entry.msgctxt in ui)")
     print("\t\tswitch modifiers:")
-    print("\t\t-u                export only translations with conflicting translation of UI substrings")
+    print("\t\t-i                export only translations with conflicting translation of UI substrings")
     print("\t\t-a                do not abbreviate tags")
     print("\t\t-x lang{,lang}    extra language to add to export as reference (no space after ,)")
     print("\t\t-e                automatically translate substrings found in the 'ui' component")
@@ -68,7 +69,7 @@ def usage():
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans, verify_translation
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans, verify_translation, untranslated_only
     try:
         opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaeuyw:p:k:l:c:n:x:n:", [])
     except getopt.GetoptError as err:
@@ -95,8 +96,10 @@ def parsecmd():
             autotranslate = True
         elif o in ("-a"):
             no_abbreviation = True
-        elif o in ("-u"):
+        elif o in ("-i"):
             inconsistent_ui_trans = True
+        elif o in ("-u"):
+            untranslated_only = True
         elif o in ("-f"):
             conflicts_only = True
         elif o in ("-r"):
@@ -730,6 +733,7 @@ def export_messages_to_csv(project):
         po = polib.pofile(file)
         for entry in po:
             if entry.obsolete: continue
+            if untranslated_only and entry.msgstr: continue
 
             if tooltips_only and not ("<ahelp" in entry.msgid or "extended" in entry.msgctxt): continue
             eid = entry.msgid
@@ -738,7 +742,8 @@ def export_messages_to_csv(project):
 
             eid = eid.replace("\n",line_break_placeholder)
             estr = estr.replace("\n",line_break_placeholder)
-            exportRow(file,key_id,eid,estr,entry.msgctxt)
+            msgctxt = entry.msgctxt.replace("\n",line_break_placeholder)
+            exportRow(file,key_id,eid,estr,msgctxt)
 
 # export conflicting translations
 def export_conflicting_messages_to_csv(project):
@@ -1145,6 +1150,7 @@ extra_lang_dictionaries=[]
 verify_translation=False
 translator = None
 testcnt=0   #limit in testing
+untranslated_only = False
 
 #placeholder to mark line breaks in export
 line_break_placeholder="<LINE_BREAK>"

@@ -147,6 +147,8 @@ potrans -p ui {switches} export > output.csv
 ```
 Possible export types are specified by switches:
 
+`-u`                export only untranslated messages
+
 `-f`: export only conflicting translations (different translations for one source string)
 
 `-r`: export only conflicting translations (reversed, two or several different source strings for one translation string)
@@ -155,7 +157,7 @@ Possible export types are specified by switches:
 
 `-t`: export only extended tool tips (they contain the tag <ahelp> in help and word 'extended' in entry.msgctxt in ui). May be combined with the -f and -r switches.
 
-`-u`: export only strings with conflicting translation of UI substrings. UI substrings are detected first and their translation is searched for the translated string. Translation of the conflicting substring is appended in [] (if a string has several translations, all are appended).
+`-i`: export only strings with conflicting translation of UI substrings. UI substrings are detected first and their translation is searched for the translated string. Translation of the conflicting substring is appended in [] (if a string has several translations, all are appended).
 
 If none of these switches is used, all messages are exported.
 
