@@ -20,6 +20,7 @@ import json
 import polib
 from collections import defaultdict
 import numpy as np
+from difflib import SequenceMatcher
 
 
 def usage():
@@ -48,7 +49,7 @@ def usage():
     print("\t\t                  If transferring between 'ui' and 'help' project, only tooltips are transferred.")
     print('\tglossary\texport unique messages in csv format to stdout as "source","target". May be used as glossary in OmegaT and maybe elsewhere ')
     print("\t\t                  accelerator characters _ and ~ are removed and newlines replaced by a placeholder")
-    print('\texport\t\texport messages in csv format to stdout with newlines replaced by placeholders.')
+    print('\texport\t\texport messages in csv format to stdout (with newlines replaced by placeholders)')
     print("\t\t-f                export conflicting translations (more than one msgstr for one msgid)")
     print("\t\t-r                export conflicting translations (reversed, more than one msgid for one msgstr)")
     print("\t\t-g                export translations with inconsistent tags")
@@ -58,6 +59,7 @@ def usage():
     print("\t\t-a                do not abbreviate tags")
     print("\t\t-x lang{,lang}    extra language to add to export as reference (no space after ,)")
     print("\t\t-e                automatically translate substrings found in the 'ui' component")
+    print("\t\t-y                verify translation using a translation service")
     #print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
     print("\timport\t\timport translations from a csv file")
     print("\t\t-c csv_file       csv file to import translations.")
@@ -66,9 +68,9 @@ def usage():
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans, verify_translation
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaeuw:p:k:l:c:n:x:n:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaeuyw:p:k:l:c:n:x:n:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -105,6 +107,8 @@ def parsecmd():
             inconsistent_tags = True
         elif o in ("-o"):
             translated_other_side = True
+        elif o in ("-y"):
+            verify_translation = True
         elif o in ("-x"):
             extra_languages = a.split(",")
             if extra_languages[-1] == "":
@@ -142,11 +146,17 @@ def request_get(url):
             print(f"request_get: curl commad failed (Bad Gateway)")
         elif "<html>" in response:
             print(f"request_get: curl commad corrupted (HTML response)")
+        elif "Server Error" in response:
+            print(f"request_get: curl commad failed (Server Error)")
         else:
             response_dir=json.loads(response)
             if 'detail' in response_dir:
-                print(f"request_get: Command failed ({response_dir['detail']})")
+                print(f"request_get: Command failed ({response_dir['detail']} {url})")
+                return None
             else:
+                if "error" in response_dir:
+                    ipdb.set_trace()
+                    pass
                 return response_dir
     sys.exit(1)
 
@@ -214,6 +224,7 @@ def download_subprojects(project_name, slugs):
     filenamedir={}
     for slug in slugs:
         filename, url = download_subproject_file(project_name, slug, lang)
+        if not filename: continue
         time.sleep(1)
         filenamedir[filename] = url
     return filenamedir
@@ -224,6 +235,7 @@ def download_subproject_file(project_name, component_name, language_code):
     
     translations_url = f"{wsite}translations/{project_name}/{component_name}/{language_code}/"
     translations = request_get(translations_url)
+    if not translations: return None, None
     filename = path.join(project_name, translations['filename'])
 
     os.makedirs(path.dirname(filename), exist_ok=True)
@@ -415,6 +427,7 @@ def build_autotranslate_dictionary():
     return
 
 # identify and translate string parts according to the UI translations
+# return original string with translated UI substrings
 def autotrans(msg):
     items = identify_ui_substrings(msg)
     atrans=msg
@@ -433,6 +446,17 @@ def autotrans(msg):
                 atrans = re.sub(r"%s"%item,str(translations),atrans)
             #ipdb.set_trace()
     return atrans
+
+# identify and translate string parts according to the UI translations
+# return pairs
+def autotrans_list(msg):
+    items = identify_ui_substrings(msg)
+    atrans=msg
+    translations = []
+    for item in items:
+        if item.lower() in autotranslate_dict:
+            translations = [str([item,t]) for t in autotranslate_dict[item.lower()]]
+    return translations
 
 # identify substrings existing in the UI component
 def identify_ui_substrings(msg):
@@ -545,15 +569,27 @@ def load_extra_languages(llist):
 
 # write csv row for the variants of the export command
 def exportRow(fname, key_id, msgid, msgstr, msgcsrt=""):
-    global exportCSVWriter, autotranslate_dict, autotranslate, extra_languages, extra_lang_dictionaries
+    global exportCSVWriter, autotranslate_dict, autotranslate, extra_languages, extra_lang_dictionaries, verify_translation, translator,testcnt
     if extra_languages and not extra_lang_dictionaries:
         extra_lang_dictionaries=load_extra_languages(extra_languages)
 
     abb_msgid = abbreviate_tags(msgid)[0]
     export_list = [fname,key_id,abb_msgid,abbreviate_tags(msgstr)[0],msgcsrt]
+    #if testcnt > 100: sys.exit(1)
+    testcnt += 1
+    if verify_translation:
+        translation = translator.translate([abb_msgid], src="en", dest=lang)[0][1]
+        translation = translation.replace("% PR"," %PR")
+        sim = similarity(translation, msgstr)
+        export_list += [sim,translation]
+        #print(sim,translation, msgstr)
+        #ipdb.set_trace()
+        pass
+
     if autotranslate:
         if not autotranslate_dict: build_autotranslate_dictionary()
-        export_list = export_list.append(autotrans(abb_msgid))
+        export_list += autotrans_list(abb_msgid)
+
     if extra_languages:
         if not extra_lang_dictionaries:
             extra_lang_dictionaries=load_extra_languages(extra_languages)
@@ -1012,6 +1048,49 @@ def load_file_list(trans_project, lang):
         proj_files = json.load(fp)
     return proj_files
 
+# class to be used in translations using the google.cloud service
+class Trans():
+    def __init__(self, type="google.cloud", source_lang = "en-US"):
+        self.type = type
+        self.source_lang = source_lang
+        if self.type == "google.cloud":
+            #sudo pip3 install google-cloud-translate
+            from google.cloud import translate
+            from difflib import SequenceMatcher
+            project_id="libreoffice-sk-en-465"
+            self.client = translate.TranslationServiceClient()
+            self.parent = self.client.location_path(project_id, "global")
+        elif self.type == "googletrans":
+            from googletrans import Translator
+            self.translator = Translator(service_urls=[ 'translate.google.com', ])
+ 
+    def translate(self, messages, src, dest): 
+        if self.type == "google.cloud":
+            try:
+                response = self.client.translate_text(
+                    parent=self.parent,
+                    contents=messages,
+                    mime_type="text/html",  # mime types: text/plain, text/html
+                    #mime_type="text/html",
+                    source_language_code=src,
+                    target_language_code=dest
+                )
+            except Exception as e:
+                print("Translation service failed")
+                # continue - from the number of repetiotions one can estimate the amount of not translated strings 
+                return None
+            return [(m,r.translated_text) for m,r in zip(messages,response.translations)]
+        elif self.type == "googletrans":
+            try:
+                response = self.translator.translate(messages, dest=dest)
+            except Exception as e:
+                print("Translation service failed")
+                # continue - from the number of repetiotions one can estimate the amount of not translated strings 
+                return None
+            return [(r.origin,r.text) for r in response]
+
+def similarity(a, b): return SequenceMatcher(None, a, b).ratio()
+
 projects = {
         'help': "libo_help-master",
         'ui': "libo_ui-master",
@@ -1042,6 +1121,8 @@ abb_tags = [
     
 
 pname = "libo_help-master"
+# necessary only if the -y switch is used (verify translation...)
+google_project_id = os.environ.get("GOOGLE_PROJECT_ID")
 api_key = os.environ.get('WEBLATE_API_KEY')
 lang = os.environ.get('WEBLATE_API_LANG')
 wsite = os.environ.get('WEBLATE_API_SITE')
@@ -1061,12 +1142,15 @@ transfer_from=""
 exportCSVWriter=None
 extra_languages=[]
 extra_lang_dictionaries=[]
+verify_translation=False
+translator = None
+testcnt=0   #limit in testing
 
 #placeholder to mark line breaks in export
 line_break_placeholder="<LINE_BREAK>"
 
 def main():
-    global token, exportCSVWriter, no_abbreviation
+    global token, exportCSVWriter, no_abbreviation, translator
 
     #response = http.get("https://en.wikipedia.org/w/api.php")
     action = parsecmd()
@@ -1182,6 +1266,8 @@ def main():
         export_glossary(trans_project)
 
     elif action == "ex":    #export
+        if verify_translation:
+            translator = Trans("google.cloud")
         if trans_project == 'ui': no_abbreviation = True
         exportCSVWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         exportCSVWriter.writerow(['File name', 'KeyID', 'Source', 'Target'])
