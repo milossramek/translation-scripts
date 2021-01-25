@@ -68,6 +68,12 @@ Downloads the `ui` subproject, creates directory `libo_ui-master/lang_code` with
 
 Downloading of individual files may fail. Usually a failure is detected and download is restarted. Sometimes, however, downloading hangs. In that case abort the script (CRTL-C) and restart it. Already downloaded po files will be skipped.
 
+In order to re-download currently downloaded translation files, use the `-d` switch:
+```
+potrans.py -p ui -d download
+``` 
+In the case when a list of translation files on the server changes, it is necessary to delet the component (e. g `libo_ui-master/sk)`a download it again
+
 ## Upload a subproject
 
 `potrans.py -p ui upload ` (default language: `sk`)

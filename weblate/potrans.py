@@ -30,14 +30,15 @@ def usage():
     print("%s: Transfer extended tooltip string from the LibreOffice help translation files to UI files or vice versa"%sys.argv[0])
     print("Usage: ",sys.argv[0]+ " switches command")
     print("Switches:")
-    print("\t-h                this usage")
-    #print("\t-v                be verbose")
-    print("\t-w site           Weblate site URL {taken from the WEBLATE_API_SITE environment variable}")
-    print("\t-p project        Abbreviation of Weblate's subproject (slug) %s"%proj_abb)
-    print("\t-k key            Weblate account key {taken from the WEBLATE_API_KEY environment variable}")
-    print("\t-l lang_code      language code {taken from the WEBLATE_API_LANG environment variable}")
+    print("\t-h                  this usage")
+    #print("\t-v                 be verbose")
+    print("\t-w site             Weblate site URL {taken from the WEBLATE_API_SITE environment variable}")
+    print("\t-p project          Abbreviation of Weblate's subproject (slug) %s"%proj_abb)
+    print("\t-k key              Weblate account key {taken from the WEBLATE_API_KEY environment variable}")
+    print("\t-l lang_code        language code {taken from the WEBLATE_API_LANG environment variable}")
     print("Commands (with their specific switches):")
     print("\tdownload\tDownload translation files for the project specidied by the -p switch")
+    print("\t\t-d                redownload translation files")
     print("\tmodified\tList modified files")
     print("\tdifferences\tShow differences in modified files")
     print("\trevert\t\tRevert modified files to the original state")
@@ -63,15 +64,15 @@ def usage():
     print("\t\t-y                verify translation using a translation service")
     #print("\t\t-o                export extended tooltips, if they are translated on the 'other' side")
     print("\timport\t\timport translations from a csv file")
-    print("\t\t-c csv_file       csv file to import translations.")
+    print("\t\t-c csv_file       csv file to import translations (tab separated)")
     print("\t\t\t\t  Structure: 4 columns, the same content as when exported")
     print("\thelp\t\tThis help")
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans, verify_translation, untranslated_only
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans, verify_translation, untranslated_only, redownload_downloaded
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaeuyw:p:k:l:c:n:x:n:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaeuydw:p:k:l:c:n:x:n:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -98,6 +99,8 @@ def parsecmd():
             no_abbreviation = True
         elif o in ("-i"):
             inconsistent_ui_trans = True
+        elif o in ("-d"):
+            redownload_downloaded = True
         elif o in ("-u"):
             untranslated_only = True
         elif o in ("-f"):
@@ -134,53 +137,37 @@ def request_get(url):
     global token
     curl_command = f'curl -s -X GET -H "authorization: {token}" {url}'
 
-    for rep in range(3):
-        response=os.popen(curl_command).read()
-        if not response:
-            print(f"request_get: no response from server")
-        elif "DOCTYPE html" in response:
-            respname = "server-error-%s.html"%time.ctime().replace(" ","-")
-            print(f"request_get: server problem, repeating the request. Server response saved to %s"%respname)   
-            with open(respname, 'w') as f:
-                f.write(response)
-        elif "Bad Request" in response:
-            print(f"request_get: curl commad corrupted (Bad Request)")
-        elif "Bad Gateway" in response:
-            print(f"request_get: curl commad failed (Bad Gateway)")
-        elif "<html>" in response:
-            print(f"request_get: curl commad corrupted (HTML response)")
-        elif "Server Error" in response:
-            print(f"request_get: curl commad failed (Server Error)")
-        else:
+    response=os.popen(curl_command).read()
+    if not response:
+        print(f"request_get: no response from server")
+    elif "DOCTYPE html" in response:
+        respname = "server-error-%s.html"%time.ctime().replace(" ","-")
+        print(f"request_get: server problem, repeating the request. Server response saved to %s"%respname)   
+        with open(respname, 'w') as f:
+            f.write(response)
+    elif "Bad Request" in response:
+        print(f"request_get: curl commad corrupted (Bad Request)")
+    elif "Bad Gateway" in response:
+        print(f"request_get: curl commad failed (Bad Gateway)")
+    elif "<html>" in response:
+        print(f"request_get: curl commad corrupted (HTML response)")
+    elif "Server Error" in response:
+        print(f"request_get: curl commad failed (Server Error)")
+    else:
+        try:
+            # if json
             response_dir=json.loads(response)
             if 'detail' in response_dir:
                 print(f"request_get: Command failed ({response_dir['detail']} {url})")
-                return None
-            else:
-                if "error" in response_dir:
+                return ""
+            elif "error" in response_dir:
                     ipdb.set_trace()
                     pass
-                return response_dir
-    sys.exit(1)
-
-def request_get_po(url):
-    global token
-    curl_command = f'curl -s -X GET -H "authorization: {token}" {url}'
-
-    for rep in range(3):
-        response=os.popen(curl_command).read()
-        if not response:
-            print(f"request_get: no response from server")
-        elif "DOCTYPE html" in response:
-            respname = "server-error-%s.html"%time.ctime().replace(" ","-")
-            print(f"request_get: server problem, repeating the request. Server response saved to %s"%respname)   
-            with open(respname, 'w') as f:
-                f.write(response)
-        elif "Bad Request" in response:
-            print(f"request_get: curl commad corrupted")
-        else:
+            return response_dir
+        except ValueError as err:
+            # if other formate, e. g. po
             return response
-    sys.exit(1)
+    return ""
 
 def upload_file(fpath, furl):
     global token
@@ -205,8 +192,13 @@ def upload_file(fpath, furl):
             if verbose: print("  Result: %s"%response)
 
 #get subproject slugs (slug: a machine name of a subproject in Weblate)
-def get_subproject_slugs(project_name):
-    global wsite, lang
+def download_subproject_file_list(project_name,lang):
+    global wsite
+    json_path_name = path.join(project_name, lang, 'files.json')
+    if os.path.exists(json_path_name):
+        return
+
+    #get subproject slugs (slug: a machine name of a subproject in Weblate)
     subprojects = request_get(f"{wsite}projects/{project_name}/components/")
     slugs=[]
     if verbose: print("Getting %d subprojects for %s:"%(subprojects['count'],project_name))
@@ -218,47 +210,61 @@ def get_subproject_slugs(project_name):
         if verbose: print("  %3d/%3d  %s"%(cnt,subprojects['count'],subprojects['next']))
         subprojects = request_get(subprojects['next'])
         cnt += len(subprojects['results'])
-    return slugs
 
-def download_subprojects(project_name, slugs):
-    global wsite, lang
-    if verbose: print(f"Downloading translation files:")
-    subprojects = request_get(f"{wsite}projects/{project_name}/components/")
+    # get file metadata
+    if verbose: print(f"Downloading list of translation files")
     filenamedir={}
     for slug in slugs:
-        filename, url = download_subproject_file(project_name, slug, lang)
-        if not filename: continue
-        time.sleep(1)
-        filenamedir[filename] = url
-    return filenamedir
+        translations_url = f"{wsite}translations/{project_name}/{slug}/{lang}/"
+        retry = 5
+        translations = None
+        while not translations and retry:
+            if verbose: print(f"  Getting metadata for {translations_url}")
+            translations = request_get(translations_url)
+            retry -= 1
+        filename = path.join(project_name, translations['filename'])
+
+        if not filename: 
+            ipdb.set_trace()
+            continue
+        time.sleep(0.5)
+        filenamedir[filename] = translations['file_url']
+
+    # save to a json file
+    os.makedirs(path.dirname(json_path_name), exist_ok=True)
+    with open(json_path_name, "w") as fp:
+        json.dump(filenamedir, fp, sort_keys=True, indent=4)
 
 #create path, download file, create hidden file
-def download_subproject_file(project_name, component_name, language_code):
-    global wsite, token
+def download_subproject_files(project_name, lang):
+    global wsite, token, redownload_downloaded
+    ui_files = load_file_list(project_name, lang)
     
-    translations_url = f"{wsite}translations/{project_name}/{component_name}/{language_code}/"
-    translations = request_get(translations_url)
-    if not translations: return None, None
-    filename = path.join(project_name, translations['filename'])
+    if verbose: print("Downloading translation files")
+    for filename in ui_files:
 
-    os.makedirs(path.dirname(filename), exist_ok=True)
+        if not redownload_downloaded:
+            if os.path.exists(filename):
+                if verbose: print(f"  Already downloaded, skipping: {filename}")
+                continue
 
-    if os.path.exists(filename):
-        if verbose: print(f"  {filename}: already downloaded, skipping")
-        return filename, f"{translations_url}/file"
-    if verbose: print(f"  {filename}")
+        os.makedirs(path.dirname(filename), exist_ok=True)
+        url = ui_files[filename]
+        #for rep in range(3):
+            #response=os.popen(curl_command).read()
+        #ipdb.set_trace()
+        po_data = ""
+        retry=5
+        # a po file contains string POT-Creation-Date, so check and retry
+        while not "POT-Creation-Date" in po_data and retry:
+            if verbose: print(f"  {filename}")
+            po_data = request_get(url)
+            retry -= 1
 
-    url = f"{translations_url}/file/"
-    curl_command = f'curl -s -X GET -H "authorization: {token}" {url}'
-    #for rep in range(3):
-        #response=os.popen(curl_command).read()
-    #ipdb.set_trace()
-    po_data = request_get_po(url)
-    with open(filename, 'w') as f:
-        f.write(po_data)
-    # create 'backup'of the file for reference - will never be changed
-    shutil.copyfile(filename, get_dot_name(filename))
-    return filename, f"{translations_url}/file"
+        with open(filename, 'w') as f:
+            f.write(po_data)
+        # create 'backup'of the file for reference - will never be changed
+        shutil.copyfile(filename, get_dot_name(filename))
 
 def clear_translations_folder():
     for root, dirs, files in os.walk(f"{os.path.dirname(os.path.abspath(__file__))}/translations", topdown=False):
@@ -730,7 +736,11 @@ def revert_abbreviations(abb_str, adir):
 def export_messages_to_csv(project):
     files = load_file_list(projects[project], lang)
     for file in files:
-        po = polib.pofile(file)
+        try:
+            po = polib.pofile(file)
+        except OSError as err:
+            print("OS error: {0}".format(err), file=sys.stderr)
+            continue
         for entry in po:
             if entry.obsolete: continue
             if untranslated_only and entry.msgstr: continue
@@ -962,7 +972,7 @@ def import_translations(project):
         hdr=["File name","KeyID","Source","Target"]
         for row in reader:
             if import_dir is None: 
-                if row != hdr:
+                if row[:4] != hdr:
                     print(f'\n%s import error: incorrect table header, expected "%s,%s,%s,%s".'%tuple([sys.argv[0]]+hdr))
                     sys.exit(1)
                 else:
@@ -1152,6 +1162,7 @@ verify_translation=False
 translator = None
 testcnt=0   #limit in testing
 untranslated_only = False
+redownload_downloaded = False
 
 #placeholder to mark line breaks in export
 line_break_placeholder="<LINE_BREAK>"
@@ -1188,11 +1199,8 @@ def main():
         sys.exit(1)
 
     if action == "do":  #download
-        subproject_slugs = get_subproject_slugs(projects[trans_project])
-        proj_files = download_subprojects(projects[trans_project], subproject_slugs)
-        #write file paths and urls to a json file
-        with open(path.join(projects[trans_project], lang, 'files.json'), "w") as fp:
-            json.dump(proj_files, fp, sort_keys=True, indent=4)
+        download_subproject_file_list(projects[trans_project], lang)
+        download_subproject_files(projects[trans_project], lang)
         pass
 
     elif action == "mo":    #modified
