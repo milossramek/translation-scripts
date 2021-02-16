@@ -1,5 +1,5 @@
 # Weblate
-Scripts related to translation of the LibreOffice user interface, help and other files. LibreOffice uses for translation the [Weblate](https://weblate.org) tool.
+Scripts related to translation of the LibreOffice user interface, "help", and other files LibreOffice translates using the [Weblate](https://weblate.org) tool.
 
 `potrans.py`: download, export to CSV, check, modify and upload LibreOffice translations maintained at the [LibreOffice Weblate server](https://translations.documentfoundation.org/)
 
