@@ -250,4 +250,4 @@ The script renders LibreOffice dialogs (*.ui files) and stores them as a PNG ima
 ## Created files
 1. A CSV file with all translatable strings is written to standard output. It may be modified and imported by the `potrans.py` tool.
 1. For each UI file its two versions are created, with the `-key.ui` and `-lang.ui` suffix. They may be opened by the `glade` tool.
-1. For each UI file a png image with its rendition is created.
+1. For each UI file a PNG image with its rendition is created.
