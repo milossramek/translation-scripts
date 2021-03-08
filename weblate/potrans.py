@@ -49,6 +49,7 @@ def usage():
     print("\t\t                  If transferring between 'ui' projects, tranfers are only between messages with identical KeyId.")
     print("\t\t                  If transferring between 'ui' and 'help' project, only tooltips are transferred.")
     print('\tglossary\texport unique messages in csv format to stdout as "source","target". May be used as glossary in OmegaT and maybe elsewhere ')
+    print("\t\t-m                max lenght of exported messages {all}")
     print("\t\t                  accelerator characters _ and ~ are removed and newlines replaced by a placeholder")
     print('\texport\t\texport messages in csv format to stdout (with newlines replaced by placeholders)')
     print("\t\t-u                export only untranslated messages")
@@ -70,9 +71,9 @@ def usage():
 
 
 def parsecmd():
-    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans, verify_translation, untranslated_only, redownload_downloaded
+    global wsite, api_key, trans_project, lang, verbose, csv_import, conflicts_only, tooltips_only, conflicts_only_rev, translated_other_side,transfer_from, inconsistent_tags, no_abbreviation, autotranslate, extra_languages, inconsistent_ui_trans, verify_translation, untranslated_only, redownload_downloaded, glossary_max
     try:
-        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaeuydw:p:k:l:c:n:x:n:", [])
+        opts, cmds = getopt.getopt(sys.argv[1:], "hvfrtogaeuydw:p:k:l:c:n:x:n:m:", [])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err)) # will print something like "option -a not recognized")
@@ -91,6 +92,8 @@ def parsecmd():
             lang = a
         elif o in ("-c"):
             csv_import = a
+        elif o in ("-m"):
+            glossary_max = int(a)
         elif o in ("-n"):
             transfer_from = a
         elif o in ("-e"):
@@ -383,6 +386,7 @@ def get_key_id_code(poentry):
 # export unique messages without newlines
 # can be used as a glossary in external translation tools as OmegaT
 def export_glossary(project):
+    global glossary_max
     files = load_file_list(projects[project], lang)
     csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     mset=set()
@@ -398,6 +402,8 @@ def export_glossary(project):
             estr = estr.replace("\n",line_break_placeholder)
             eid = eid.replace("_","").replace("~","")
             estr = estr.replace("_","").replace("~","")
+            # skip long messages
+            if glossary_max and len(eid) > glossary_max: continue
             if not eid+estr in mset:
                 csvWriter.writerow([eid,estr])
                 mset.add(eid+estr)
@@ -1163,6 +1169,7 @@ translator = None
 testcnt=0   #limit in testing
 untranslated_only = False
 redownload_downloaded = False
+glossary_max=0
 
 #placeholder to mark line breaks in export
 line_break_placeholder="<LINE_BREAK>"
