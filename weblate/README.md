@@ -71,7 +71,7 @@ Downloading of individual files may fail. Usually a failure is detected and down
 In order to re-download currently downloaded translation files, use the `-d` switch:
 ```
 potrans.py -p ui -d download
-``` 
+```
 In the case when a list of translation files on the server changes, it is necessary to delet the component (e. g `libo_ui-master/sk)`a download it again
 
 ## Upload a subproject
@@ -134,7 +134,13 @@ A two column "Source<TAB>Translation" csv file is exported. It can be used, e. g
 ```
 potrans -p ui glossary > output.csv
 ```
-To use the glossary file in OmegaT, copy the resulting csv file to OmegaT's working directory (the 'glossary' subdirectory). It is necessary to change suffix of the file to .txt.
+To use the glossary file in OmegaT, copy the resulting csv file to OmegaT's working directory (the 'glossary' subdirectory). It is necessary to change suffix of the file to `.txt`.
+
+Length of the output messages can be limited by the `-m` switch:
+```
+potrans -p ui -m 70 glossary > output.csv
+```
+Multiline messages are not exported.
 
 ## Export translations
 The goal is to export translated and/or untranslated messages to a csv file, which can be translated and imported back, used to find typos and translation conflicts or perhaps also for other purposes.
