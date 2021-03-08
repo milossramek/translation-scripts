@@ -403,6 +403,7 @@ def export_glossary(project):
             eid = eid.replace("_","").replace("~","")
             estr = estr.replace("_","").replace("~","")
             # skip long messages
+            if line_break_placeholder in eid: continue 
             if glossary_max and len(eid) > glossary_max: continue
             if not eid+estr in mset:
                 csvWriter.writerow([eid,estr])
