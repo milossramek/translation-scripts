@@ -15,7 +15,7 @@
 import sys, getopt, csv, re, time
 import os, shutil, filecmp
 from os import path
-import ipdb
+from ipdb import set_trace as trace
 import json
 import polib
 from collections import defaultdict
@@ -123,7 +123,6 @@ def parsecmd():
             if extra_languages[-1] == "":
                 usage()
                 sys.exit(0)
-            #ipdb.set_trace()
             pass
         elif o in ("-h"):
             usage()
@@ -164,7 +163,7 @@ def request_get(url):
                 print(f"request_get: Command failed ({response_dir['detail']} {url})")
                 return ""
             elif "error" in response_dir:
-                    ipdb.set_trace()
+                    trace()
                     pass
             return response_dir
         except ValueError as err:
@@ -226,10 +225,6 @@ def download_subproject_file_list(project_name,lang):
             translations = request_get(translations_url)
             retry -= 1
         filename = path.join(project_name, translations['filename'])
-
-        if not filename: 
-            ipdb.set_trace()
-            continue
         time.sleep(0.5)
         filenamedir[filename] = translations['file_url']
 
@@ -255,7 +250,6 @@ def download_subproject_files(project_name, lang):
         url = ui_files[filename]
         #for rep in range(3):
             #response=os.popen(curl_command).read()
-        #ipdb.set_trace()
         po_data = ""
         retry=5
         # a po file contains string POT-Creation-Date, so check and retry
@@ -301,7 +295,6 @@ def transfer_tooltips_ui_to_help():
                     ahelp_dir[ahelp_id] = ["", ufile]
                 pass
     #load help catalogs and find eventually translated messages in ahelp_dir
-    #ipdb.set_trace()
     csvWriter = csv.writer(sys.stdout, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     help_files = load_file_list(projects['help'], lang)
     modified_files = set()
@@ -357,7 +350,6 @@ def transfer_translations_ui_to_ui():
                         if entry.msgid != key_dir[entry.comment][0]:
                             csvWriter.writerow(["Conflict", entry.msgid, key_dir[entry.comment][0]])
                         csvWriter.writerow(["Replaced", entry.msgid+":", entry.msgstr+" >> "+ key_dir[entry.comment][1]])
-                        #ipdb.set_trace()
                         entry.msgstr = key_dir[entry.comment][1]
                         changed=True
                         nmod += 1
@@ -415,7 +407,6 @@ def tag_equivalence(itags, stags):
     itags=sorted([re.sub(r' name="[^"]*"','',t) for t in itags])
     stags=sorted([re.sub(r' name="[^"]*"','',t) for t in stags])
     if itags != stags:
-        #ipdb.set_trace()
         return False
     return True
 
@@ -460,7 +451,6 @@ def autotrans(msg):
             else:
                 #atrans = re.sub(r"\b%s\b"%item,str(translations),atrans)
                 atrans = re.sub(r"%s"%item,str(translations),atrans)
-            #ipdb.set_trace()
     return atrans
 
 # identify and translate string parts according to the UI translations
@@ -508,7 +498,6 @@ def identify_ui_substrings(msg):
             ui_strings += [msp]
         else:
             #split to segments starting with capitalized word
-            #ipdb.set_trace()
             segments = segment_string(msp) 
             for segment in segments:
                 canditate_seg=[]    #list of candidates from each shortened substring
@@ -517,7 +506,6 @@ def identify_ui_substrings(msg):
                 while len(segment) > 0:
                     rslt = find_ui(segment)
                     if rslt: canditate_seg.append(rslt)
-                    #ipdb.set_trace()
                     # remove the first word
                     spacePos = segment.find(" ")
                     if spacePos < 0: 
@@ -540,7 +528,6 @@ def segment_string(msg):
     msgsplit = msg.strip().split(" ")
     segment = ""
     nn = 0
-    #ipdb.set_trace()
     while nn < len(msgsplit):
         while nn < len(msgsplit) and msgsplit[nn][0].isupper(): 
             segment = "%s %s"%(segment, msgsplit[nn]) 
@@ -554,7 +541,6 @@ def segment_string(msg):
     return segments
 
 def find_ui(segment):
-    #ipdb.set_trace()
     while len(segment) > 0:
         if segment.lower() in autotranslate_dict:
             return segment
@@ -599,7 +585,6 @@ def exportRow(fname, key_id, msgid, msgstr, msgcsrt=""):
         sim = similarity(translation, msgstr)
         export_list += [sim,translation]
         #print(sim,translation, msgstr)
-        #ipdb.set_trace()
         pass
 
     if autotranslate:
@@ -633,14 +618,13 @@ def export_inconsistent_tags(project):
                 key_id = get_key_id_code(entry)
                 eid = entry.msgid.replace("\n",line_break_placeholder)
                 estr = entry.msgstr.replace("\n",line_break_placeholder)
-                #ipdb.set_trace()
                 exportRow(file,key_id,eid,estr)
                 #test
                 abb, adir = abbreviate_tags(eid)
                 if adir:
                     eeid = revert_abbreviations(abb,adir)
                     if(eid != eeid):
-                        ipdb.set_trace()
+                        trace()
                         pass
 
 # export unique messages without newlines
@@ -656,20 +640,15 @@ def export_inconsistent_ui_trans(project):
             if not entry.translated(): continue
             if tooltips_only and not ("<ahelp" in entry.msgid or "extended" in entry.msgctxt): continue
 
-            #if entry.msgid == "Menus":
-                #ipdb.set_trace()
-
             failed=False
             ttt=[]
             for item in identify_ui_substrings(entry.msgid):
-                #ipdb.set_trace()
                 failedItem=True
                 if item.lower() in autotranslate_dict:
                     translist = [t for t in autotranslate_dict[item.lower()]]
                     #continue if at least one translation in translist can be found in entry.msgstr
                     for trans in translist:
                         if trans in entry.msgstr: 
-                            #ipdb.set_trace()
                             failedItem=False
                             break
                         else:
@@ -682,7 +661,6 @@ def export_inconsistent_ui_trans(project):
                         exportRow(file,key_id,eid,estr,str(ttt))
                         break
 
-            #ipdb.set_trace()
             pass
 
 
@@ -703,7 +681,6 @@ def abbreviate_tags(imsg):
             msg = msg.replace(ftags[n],"<%s>"%abb,1)
             adir["<%s>"%abb]=ftags[n]
         msg = msg.replace("</%s>"%tag, "</%s>"%tag[:2].upper())
-    #ipdb.set_trace()
     return msg, adir
 
 #revert abbreviations in msgstr
@@ -724,7 +701,6 @@ def revert_abbreviations(abb_str, adir):
         sys.exit(1)
     for tag in abb_tags:
         msgstr = msgstr.replace("</%s>"%tag[:2].upper(),"</%s>"%tag) 
-    #ipdb.set_trace()
     # check if abbreviations still exist
     for tag in abb_tags:
         if "<%s"%tag[:2].upper() in msgstr:
@@ -791,7 +767,6 @@ def export_conflicting_messages_to_csv(project):
                 else:
                     eid=entry.msgid
                     estr=entry.msgstr
-                #ipdb.set_trace()
 
             # ignore untranslated
             if not estr: continue
@@ -819,7 +794,6 @@ def export_conflicting_messages_to_csv(project):
             unique = set()
             for val in conf_dict[eid]: unique.add(val[2])
             if len(unique) > 1:
-                #ipdb.set_trace()
                 for val in conf_dict[eid]:
                     exportRow(val[0], val[1], eid, val[2], val[3])
 
@@ -986,7 +960,7 @@ def import_translations(project):
                     import_dir = {}
                     continue
             if len(row) < 4:
-                ipdb.set_trace()
+                trace()
                 print(f"\n%s import error: insufficient number of columns at %s."%(sys.argv[0], row))
                 sys.exit(1)
             import_dir[row[1]] = row[2:]
@@ -1004,7 +978,6 @@ def import_translations(project):
             if not keyid in import_dir: continue
             #remove abbreviations in translated strings. If there are none, nothing happens
             aux, adir = abbreviate_tags(entry.msgid)
-            #ipdb.set_trace()
             msgstr = revert_abbreviations(import_dir[keyid][1],adir)
             entry.msgstr = remove_extra_spaces(msgstr).replace(line_break_placeholder,"\n")
             changed = True
@@ -1048,9 +1021,7 @@ def transfer_tooltips_help_to_ui():
         untranslated = po.untranslated_entries()
         for entry in untranslated:
             if entry.msgid in ahelp_dir and not entry.msgstr:
-                #ipdb.set_trace()
                 if ahelp_dir[entry.msgid][0]:
-                    #ipdb.set_trace()
                     entry.msgstr = import_dir[entry.msgid][0].replace(line_break_placeholder,"\n")
                     print("  Translated: %s"%(entry.msgid))
                     changed = True
@@ -1069,6 +1040,7 @@ def transfer_tooltips_help_to_ui():
 def load_file_list(trans_project, lang):
     with open(path.join(trans_project, lang, 'files.json'), "r") as fp:
         proj_files = json.load(fp)
+        trace()
     return proj_files
 
 # class to be used in translations using the google.cloud service
