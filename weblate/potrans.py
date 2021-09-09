@@ -215,7 +215,8 @@ def download_subproject_file_list(project_name,lang):
 
     # get file metadata
     if verbose: print(f"Downloading list of translation files")
-    filenamedir={}
+    # list of names of po files
+    pofilenamedir={}
     for slug in slugs:
         translations_url = f"{wsite}translations/{project_name}/{slug}/{lang}/"
         retry = 5
@@ -225,13 +226,17 @@ def download_subproject_file_list(project_name,lang):
             translations = request_get(translations_url)
             retry -= 1
         filename = path.join(project_name, translations['filename'])
-        time.sleep(0.5)
-        filenamedir[filename] = translations['file_url']
+        if filename.split(".")[-1] == "po":
+            pofilenamedir[filename] = translations['file_url']
+            time.sleep(0.5)
+        elif filename.split(".")[-1] == "tbx":
+            # do something with tbx files (glossary)
+            print(filename)
 
     # save to a json file
     os.makedirs(path.dirname(json_path_name), exist_ok=True)
     with open(json_path_name, "w") as fp:
-        json.dump(filenamedir, fp, sort_keys=True, indent=4)
+        json.dump(pofilenamedir, fp, sort_keys=True, indent=4)
 
 #create path, download file, create hidden file
 def download_subproject_files(project_name, lang):
@@ -1040,7 +1045,6 @@ def transfer_tooltips_help_to_ui():
 def load_file_list(trans_project, lang):
     with open(path.join(trans_project, lang, 'files.json'), "r") as fp:
         proj_files = json.load(fp)
-        trace()
     return proj_files
 
 # class to be used in translations using the google.cloud service

@@ -4,14 +4,15 @@ import sys, getopt, os, json, re
 from lxml import etree
 from copy import deepcopy
 from ipdb import set_trace as trace
+import deepl
+
 #java -jar /opt/OmegaT_4.3.2_Linux_64/OmegaT.jar /path_to_project --mode=console-createpseudotranslatetmx --pseudotranslatetmx=output.tmx
 
 #ipdb
 class Trans():
     def __init__(self, lang, api_key, omegat_project = None):
         self.targetlang = lang
-        self.DEEPL_API_KEY = api_key
-        self.DEEPL_API_SITE = os.environ['DEEPL_API_SITE']
+        self.translator = deepl.Translator(api_key) 
 
         # load tmx with existing translations
         self.translated = {}
@@ -37,22 +38,12 @@ class Trans():
                 tgt = tgt.replace(tacc, acc)
         return tgt
 
-    def translate_deepl(self, message):
-        curl_command  = f'curl -s https://{self.DEEPL_API_SITE}/v2/translate'
-        curl_command = f'{curl_command} -d auth_key={self.DEEPL_API_KEY}'
-        curl_command = f'{curl_command} -d text="{message}" -d "target_lang={self.targetlang}"'
-        response=os.popen(curl_command).read()
-        response_dir=json.loads(response)
-        return response_dir['translations'][0]['text']
-
     def translate(self, src):
         if src in self.translated:
             return None
         else:
-            # Deepl does not like the ` character
-            placeholder = "123GGG321"
-            translation = self.translate_deepl(src.replace("`",placeholder))
-            return self.fix(src, translation). replace(placeholder, "`")
+            translation = self.translator.translate_text(src, target_lang=self.targetlang)
+            return self.fix(src, translation.text)
 
     def load_tmx(self, fname, reversed=False):
         tree = etree.parse(fname)
@@ -80,8 +71,8 @@ def isTU(item):
 def usage():
     global iname, oname
     print("%s: Translate OmegaT strings from English using the deepL service"%sys.argv[0])
-    print("\t-k key           Deepl account key {taken from the DEEPL_API_KEY environment variable}")
-    print("\t-l lang_code     Language to translate to {taken from the DEEPL_API_LANG environment variable}") 
+    print("\t-k key           Deepl account key {taken from the TMXTRANS_API_KEY environment variable}")
+    print("\t-l lang_code     Language to translate to {taken from the TMXTRANS_TARGET_LANG environment variable}") 
     print("\t-p path          Path of the omegat project {taken from the TMXTRANS_OMEGAT_PROJECT environment variable}") 
     print("\t-i input_file    Input tmx file. Default: %s"%iname)
     print("\t                 The file can be created by")
@@ -115,18 +106,12 @@ def parsecmd():
         else:
             assert False, "unhandled option"
 
-api_key = os.environ.get('DEEPL_API_KEY')
-lang = os.environ.get('DEEPL_API_LANG')
-wsite = os.environ.get('DEEPL_API_SITE')
+api_key = os.environ.get('TMXTRANS_API_KEY')
+lang = os.environ.get('TMXTRANS_TARGET_LANG')
 omegat_project = os.environ.get('TMXTRANS_OMEGAT_PROJECT')
 oname = 'out.tmx'
 iname = 'in.tmx'
 lang = 'sk'
-
-if sys.stdout.encoding is None:
-    import codecs
-    Writer = codecs.getwriter("utf-8")
-    sys.stdout = Writer(sys.stdout)
 
 parsecmd()
 tr = Trans(lang=lang, api_key=api_key, omegat_project=omegat_project)
@@ -140,9 +125,10 @@ translated = 0
 for iitem in tree.xpath('//tu'):
     item = deepcopy(iitem)
     src, tgt = item.xpath("//seg")
+    #trace()
 
     # skip, if already translated
-    if src.text != tgt.text:
+    if tgt.text and src.text != tgt.text:
         translated += 1
         continue
 
@@ -159,5 +145,6 @@ for iitem in tree.xpath('//tu'):
     else:
         iitem.getparent().remove(iitem)
 tree.write (oname)
+print()
 print(f"Done, translated {translated} strings")
 print(f"Now, copy the output file {oname} to the {omegat_project}/tm directory")
