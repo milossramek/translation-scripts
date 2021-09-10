@@ -52,6 +52,7 @@ Common switches are:
 	-i input_file    Input tmx file. Default: in.tmx
 	                 The file can be created using
 	                 java -jar /path/to/OmegaT.jar /path/to/project --mode=console-createpseudotranslatetmx --pseudotranslatetmx=in.tmx
+	-g csv_file      glossary with the UI translation. Default: glossary_sk.csv
 	-o output_file   translated output file
 	-h               this usage
 ```
@@ -59,12 +60,29 @@ If all environment variables are set, run the following:
 ```
 tmxtrans.py -i in.tmx -o out.tmx
 ```
+### Using glossary to translate LibreOffice UI components
+In Libreoffice guides user interface components are usually highlighted. As such they can be translated using a glossary created from UI localization using the `potrans.py` tool (available from the same GitHub repository):
 
 ### Restarting translation
-The script saves the output file after every 1000 processed strings. The output file contains all translated and also untranslated strings. Thus, in the case the script crashes, it can be restarted by using the original output file as input:
+The script saves the output file after every 1000 processed strings. The output file contains all translated and also untranslated strings. Thus, in the case the script crashes, it can be restarted by using the original output file as input. See the `potrans.py` documentation, section [Export glossary](https://github.com/milossramek/translation-scripts/tree/master/weblate#export-glossary).
 ```
 tmxtrans.py ..switches... -i out.tmx -o out1.tmx
 ```
 
 ### Using the translated tmx file
 The translated tmx file should be copied to the `tm` subdirectory of the omegat project.
+
+### Logging
+The `tmxtrans.script` writes to the standard output a report, which can be saved to a file by redirecting the output to a file:  
+```
+tmxtrans.py -i in.tmx -o out.tmx > log.txt
+```
+A typical record for translation of a string looks like this:
+```
+UI:   My Macros
+      Moje makrá
+Translation: The <f1>My Macros</f1> library container holds your macros that are available to any of your LibreOffice documents.
+             V kontajneri knižnice <f1>Moje makrá</f1> sú uložené vaše makrá, ktoré sú k dispozícii pre všetky vaše dokumenty LibreOffice.
+```
+where `UI` is an identified string, which may possibly be an UI component. In the following line one can find translation obtained from the glossary. If there is no such translation, then the string is either not in the glossary, or the translation there is ambiguous (two o several different translations of the same string).
+`Translation` consists of two lines, untranslated and translated string.
