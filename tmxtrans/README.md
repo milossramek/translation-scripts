@@ -16,20 +16,24 @@ The script was developed and tested in a Linux environment using Python 3.
 
 It is likely that the script works equally well in WSL ([Windows subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10)).
 
+The script has the following dependencies: `deepl`, `copy` and `lxml`. The ca be installed, e. g., by
+```
+pip install deepl
+```
+
 ### Setting of environment variables
 
 When using `bash`, set the environment variables in the `.bashrc` file:
 
 ```
-export DEEPL_API_KEY=khdpxiu4yrcp4w8ubvt;o4inaoitn;igj;5ew
-export DEEPL_API_SITE=api-free.deepl.com
-export DEEPL_API_LANG=sk
+export TMXTRANS_API_KEY=khdpxiu4yrcp4w8ubvt;o4inaoitn;igj;5ew
+export TMXTRANS_TARGET_LANG=sk
 export TMXTRANS_OMEGAT_PROJECT=/home/.....
 ```
 
 To be loaded, log out or open a new terminal.
 
-To get the Deepl key, create first a "DeepL API Free" account at https://www.deepl.com/pro?cta=menu-plans. Then, you get the key from https://www.deepl.com/docs-api/accessing-the-api/. 
+To get the Deepl key, create first a "DeepL API Free" account at https://www.deepl.com/pro?cta=menu-plans. Then, you get the key from https://www.deepl.com/docs-api/accessing-the-api/.
 
 ### Run the Script
 The scripts should be run this way:
@@ -42,8 +46,8 @@ for example, `tmxtrans.py -h` displays a short help.
 Common switches are:
 
 ```
-	-k key           Deepl account key {taken from the DEEPL_API_KEY environment variable}
-	-l lang_code     Language to translate to {taken from the DEEPL_API_LANG environment variable}
+	-k key           Deepl account key {taken from the TMXTRANS_API_KEY environment variable}
+	-l lang_code     Language to translate to {taken from the TMXTRANS_TARGET_LANG environment variable}
 	-p path          Path of the omegat project {taken from the TMXTRANS_OMEGAT_PROJECT environment variable}
 	-i input_file    Input tmx file. Default: in.tmx
 	                 The file can be created using

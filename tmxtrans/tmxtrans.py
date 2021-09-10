@@ -1,6 +1,7 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-import sys, getopt, os, json, re
+import sys, getopt, os, json, re, csv
+from collections import defaultdict
 from lxml import etree
 from copy import deepcopy
 from ipdb import set_trace as trace
@@ -10,7 +11,7 @@ import deepl
 
 #ipdb
 class Trans():
-    def __init__(self, lang, api_key, omegat_project = None):
+    def __init__(self, lang, api_key, omegat_project = None, glossary = None):
         self.targetlang = lang
         self.translator = deepl.Translator(api_key) 
 
@@ -18,6 +19,11 @@ class Trans():
         self.translated = {}
         if omegat_project:
             self.translated = self.load_tmx(f"{omegat_project}/omegat/project_save.tmx")
+        
+        # load tmx with existing translations
+        self.glossary = {}
+        if glossary:
+            self.glossary = self.loadCSV(glossary)
         
     #fix problems in the translations
     def fix(self, src, tgt):
@@ -38,12 +44,37 @@ class Trans():
                 tgt = tgt.replace(tacc, acc)
         return tgt
 
+    def translate_ui(self, src):
+        items = re.findall(r"<f[0-9]>([^<]*)</f[0-9]>", src)
+        # create list of ui items
+        ui_items = []
+        for item in items:
+            for part in item.split(" > "):
+                print(f"UI:   {part}")
+                if part in self.glossary and len(self.glossary[part]) == 1:
+                    ui_items.append(part)
+                    print(f"      {self.glossary[part][0]}")
+        placeholders = {}
+        for nn, item in enumerate(sorted(ui_items, key=len)[::-1]):
+        #for nn, item in enumerate(ui_items):
+            placeholder = "PL%03d"%nn
+            src = src.replace(item, placeholder)
+            placeholders[placeholder] = self.glossary[item][0]
+        return src, placeholders
+
     def translate(self, src):
         if src in self.translated:
             return None
         else:
-            translation = self.translator.translate_text(src, target_lang=self.targetlang)
-            return self.fix(src, translation.text)
+            # translate ui items (replaced by placeholders in translation_ui)
+            translation_ui, placeholders = self.translate_ui(src)
+            # translate all
+            translation = self.translator.translate_text(translation_ui, target_lang=self.targetlang).text
+            # remove placeholders
+            for ph in placeholders:
+                translation = translation.replace(ph, placeholders[ph])
+            #fix common  problems and return
+            return self.fix(src, translation)
 
     def load_tmx(self, fname, reversed=False):
         tree = etree.parse(fname)
@@ -59,8 +90,18 @@ class Trans():
                     mdict[src.text] = tgt.text
             except:
                 print("except")
-
         return mdict 
+
+    def loadCSV(self,ifile):
+        # get information about the slices first
+        #ipdb.set_trace()
+        items = defaultdict(list)
+        with open(ifile, 'rt', encoding='utf-8') as csvfile:
+            reader = csv.reader(csvfile, delimiter='\t', quotechar='"',quoting=csv.QUOTE_MINIMAL)
+            for row in reader:
+                if len(row) > 0: 
+                    items[row[0]].append(row[1])
+        return items
 
 def isTU(item):
     if item.tag == "tu":
@@ -69,7 +110,7 @@ def isTU(item):
         return False
 
 def usage():
-    global iname, oname
+    global iname, oname, gname
     print("%s: Translate OmegaT strings from English using the deepL service"%sys.argv[0])
     print("\t-k key           Deepl account key {taken from the TMXTRANS_API_KEY environment variable}")
     print("\t-l lang_code     Language to translate to {taken from the TMXTRANS_TARGET_LANG environment variable}") 
@@ -77,6 +118,7 @@ def usage():
     print("\t-i input_file    Input tmx file. Default: %s"%iname)
     print("\t                 The file can be created by")
     print("\t                 java -jar /path/to/OmegaT.jar /path/to/project --mode=console-createpseudotranslatetmx --pseudotranslatetmx=%s"%iname)
+    print("\t-g csv_file      glossary with the UI translation. Default: %s"%gname)
     print("\t-o output_file   translated output file")
     print("\t-h               this usage")
 
@@ -111,10 +153,10 @@ lang = os.environ.get('TMXTRANS_TARGET_LANG')
 omegat_project = os.environ.get('TMXTRANS_OMEGAT_PROJECT')
 oname = 'out.tmx'
 iname = 'in.tmx'
-lang = 'sk'
+gname = f'glossary_{lang}.csv'
 
 parsecmd()
-tr = Trans(lang=lang, api_key=api_key, omegat_project=omegat_project)
+tr = Trans(lang=lang, api_key=api_key, omegat_project=omegat_project, glossary=gname)
 
 #tree = etree.parse(iname)
 tree = etree.parse(iname)
